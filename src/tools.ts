@@ -1,91 +1,210 @@
 import { z } from "zod";
-import {
-  listVariables,
-  queryData,
-  searchIndustries,
-  searchProducts,
-} from "./census.js";
+import { searchDatasets } from "./catalog.js";
+import { resolveGeography, listGeographies } from "./geography.js";
+import { searchVariables, searchGroups } from "./variables.js";
+import { queryDataRaw } from "./client.js";
 
-export const searchIndustriesSchema = {
-  keyword: z.string().min(1).describe("Keyword to search NAICS 2022 industry labels (case-insensitive substring match)."),
-};
+// --- discover_datasets ---
 
-export async function searchIndustriesTool(args: { keyword: string }) {
-  const results = await searchIndustries(args.keyword);
-  return {
-    content: [
-      {
-        type: "text" as const,
-        text: JSON.stringify(results, null, 2),
-      },
-    ],
-  };
-}
-
-export const searchProductsSchema = {
-  keyword: z.string().min(1).describe("Keyword to search NAPCS 2022 product/service labels (case-insensitive substring match)."),
-};
-
-export async function searchProductsTool(args: { keyword: string }) {
-  const results = await searchProducts(args.keyword);
-  return {
-    content: [
-      {
-        type: "text" as const,
-        text: JSON.stringify(results, null, 2),
-      },
-    ],
-  };
-}
-
-export const queryDataSchema = {
-  naics: z
+export const discoverDatasetsSchema = {
+  query: z
     .string()
-    .optional()
-    .describe('NAICS 2022 industry code. Omit for all industries. Use search_industries to find codes.'),
-  napcs: z
-    .string()
-    .optional()
-    .describe('NAPCS 2022 product/service code. Omit for all products. Use search_products to find codes.'),
-  taxstat: z
-    .string()
-    .optional()
-    .describe('Tax status filter. Omit for all. "0" = taxable, "2" = tax-exempt.'),
-  variables: z
-    .array(z.string())
-    .optional()
+    .min(1)
     .describe(
-      "Census variables to retrieve. Defaults to: GEO_ID, NAPCS2022_LABEL, NAICS2022_LABEL, ESTAB, NAPCSDOL, NAICSALL_PCT."
+      "Topic to search for (e.g., 'income', 'population', 'business', 'housing')."
     ),
 };
 
-export async function queryDataTool(args: {
-  naics?: string;
-  napcs?: string;
-  taxstat?: string;
-  variables?: string[];
+export async function discoverDatasetsTool(args: { query: string }) {
+  const results = searchDatasets(args.query);
+  const note =
+    results.length === 0
+      ? "No datasets found. Try broader terms like 'demographics', 'economy', 'housing'."
+      : `Found ${results.length} dataset(s).`;
+  return {
+    content: [
+      { type: "text" as const, text: note },
+      { type: "text" as const, text: JSON.stringify(results, null, 2) },
+    ],
+  };
+}
+
+// --- list_geographies ---
+
+export const listGeographiesSchema = {
+  dataset: z.string().min(1).describe("Dataset ID (e.g., 'acs/acs5')."),
+  vintage: z.number().describe("Year/vintage (e.g., 2024)."),
+};
+
+export async function listGeographiesTool(args: {
+  dataset: string;
+  vintage: number;
 }) {
-  const rows = await queryData(args);
+  const levels = await listGeographies(args.dataset, args.vintage);
+  const note =
+    levels.length === 0
+      ? "No geography information found. Check that the dataset and vintage are correct."
+      : `Found ${levels.length} geography level(s).`;
+  return {
+    content: [
+      { type: "text" as const, text: note },
+      { type: "text" as const, text: JSON.stringify(levels, null, 2) },
+    ],
+  };
+}
+
+// --- search_variables ---
+
+export const searchVariablesSchema = {
+  dataset: z.string().min(1).describe("Dataset ID (e.g., 'acs/acs5')."),
+  vintage: z.number().describe("Year/vintage (e.g., 2024)."),
+  query: z
+    .string()
+    .min(1)
+    .describe(
+      "Keyword to search variable labels (e.g., 'median household income', 'population', 'rent')."
+    ),
+};
+
+export async function searchVariablesTool(args: {
+  dataset: string;
+  vintage: number;
+  query: string;
+}) {
+  const results = await searchVariables(args.dataset, args.vintage, args.query);
+  const note =
+    results.length === 0
+      ? "No variables found. Try different keywords or check the dataset/vintage."
+      : `Found ${results.length} variable(s).`;
+  return {
+    content: [
+      { type: "text" as const, text: note },
+      { type: "text" as const, text: JSON.stringify(results, null, 2) },
+    ],
+  };
+}
+
+// --- search_groups ---
+
+export const searchGroupsSchema = {
+  dataset: z.string().min(1).describe("Dataset ID (e.g., 'acs/acs5')."),
+  vintage: z.number().describe("Year/vintage (e.g., 2024)."),
+  query: z
+    .string()
+    .min(1)
+    .describe(
+      "Keyword to search group/table names and descriptions (e.g., 'sex by age', 'poverty')."
+    ),
+};
+
+export async function searchGroupsTool(args: {
+  dataset: string;
+  vintage: number;
+  query: string;
+}) {
+  const results = await searchGroups(args.dataset, args.vintage, args.query);
+  const note =
+    results.length === 0
+      ? "No table groups found. Not all datasets have groups. Try search_variables instead."
+      : `Found ${results.length} group(s).`;
+  return {
+    content: [
+      { type: "text" as const, text: note },
+      { type: "text" as const, text: JSON.stringify(results, null, 2) },
+    ],
+  };
+}
+
+// --- resolve_geography ---
+
+export const resolveGeographySchema = {
+  name: z
+    .string()
+    .min(1)
+    .describe(
+      "Place name to look up (e.g., 'California', 'Cook County', 'TX')."
+    ),
+  level: z
+    .enum(["state", "county"])
+    .optional()
+    .describe(
+      "Limit search to a specific level. Omit to search both states and counties."
+    ),
+};
+
+export async function resolveGeographyTool(args: {
+  name: string;
+  level?: "state" | "county";
+}) {
+  const results = resolveGeography(args.name, args.level);
+  const note =
+    results.length === 0
+      ? "No matching state or county found. Try a different name, or pass FIPS codes directly to query_data."
+      : `Found ${results.length} match(es).`;
+  return {
+    content: [
+      { type: "text" as const, text: note },
+      { type: "text" as const, text: JSON.stringify(results, null, 2) },
+    ],
+  };
+}
+
+// --- query_data ---
+
+export const queryDataSchema = {
+  dataset: z
+    .string()
+    .min(1)
+    .describe("Dataset ID from discover_datasets (e.g., 'acs/acs5')."),
+  vintage: z
+    .number()
+    .describe("Year/vintage from discover_datasets (e.g., 2024)."),
+  get: z
+    .array(z.string())
+    .min(1)
+    .describe(
+      "Variable codes to retrieve (from search_variables). Always include 'NAME' for human-readable geography labels."
+    ),
+  for: z
+    .string()
+    .min(1)
+    .describe(
+      "Geography clause (from resolve_geography's for_clause, or 'state:*' for all states, 'county:*' for all counties)."
+    ),
+  in: z
+    .string()
+    .optional()
+    .describe(
+      "Parent geography clause (from resolve_geography's in_clause, e.g., 'state:17' when querying counties)."
+    ),
+  predicates: z
+    .record(z.string())
+    .optional()
+    .describe("Additional filter predicates as key-value pairs."),
+};
+
+export async function queryDataTool(args: {
+  dataset: string;
+  vintage: number;
+  get: string[];
+  for: string;
+  in?: string;
+  predicates?: Record<string, string>;
+}) {
+  const rows = await queryDataRaw(args.dataset, args.vintage, {
+    get: args.get,
+    for: args.for,
+    in: args.in,
+    predicates: args.predicates,
+  });
   const note =
     rows.length === 0
-      ? "No results for these filters. Try broader NAICS/NAPCS codes or confirm codes with search_industries/search_products."
+      ? "No results. Check your variable codes, geography, and dataset/vintage."
       : `Returned ${rows.length} row(s).`;
   return {
     content: [
       { type: "text" as const, text: note },
       { type: "text" as const, text: JSON.stringify(rows, null, 2) },
-    ],
-  };
-}
-
-export async function listVariablesTool() {
-  const vars = await listVariables();
-  return {
-    content: [
-      {
-        type: "text" as const,
-        text: JSON.stringify(vars, null, 2),
-      },
     ],
   };
 }
