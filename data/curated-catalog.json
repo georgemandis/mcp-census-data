@@ -1,0 +1,317 @@
+[
+  {
+    "id": "acs/acs5",
+    "title": "American Community Survey 5-Year Estimates",
+    "description": "The workhorse of Census data. Covers demographics, income, poverty, education, housing costs and conditions, languages spoken, commute times, health insurance, employment, and much more. Averaged over 5 years so estimates are reliable even for small towns, neighborhoods, and census tracts. Use this when you want to know what a place is like — who lives there, how much they earn, what kind of housing they have. Available down to census tract and block group level. Best for: neighborhood profiles, comparing cities or counties, policy research.",
+    "vintages": [2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024],
+    "endpoint": "acs/acs5"
+  },
+  {
+    "id": "acs/acs1",
+    "title": "American Community Survey 1-Year Estimates",
+    "description": "Same topics as the 5-year ACS (demographics, income, housing, education, etc.) but based on a single year of surveys. More current but less reliable for small populations — only available for areas with 65,000+ people. Use this when you need the most recent data for a large city, metro area, or state, and can tolerate wider margins of error. Best for: tracking trends in large cities year-over-year, getting the freshest state-level estimates.",
+    "vintages": [2005, 2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2021, 2022, 2023, 2024],
+    "endpoint": "acs/acs1"
+  },
+  {
+    "id": "acs/acsse",
+    "title": "American Community Survey 1-Year Supplemental Estimates",
+    "description": "A simplified version of the 1-year ACS covering a limited set of core demographic and housing topics. Covers smaller geographies (down to 20,000 population) than the standard 1-year ACS. Useful when you need recent single-year data for medium-sized places that don't meet the 65,000-person threshold for the regular 1-year ACS. Fewer variables than the full ACS but broader geographic coverage.",
+    "vintages": [2014, 2015, 2016, 2017, 2018, 2019, 2021, 2022, 2023, 2024],
+    "endpoint": "acs/acsse"
+  },
+  {
+    "id": "acs/acs3",
+    "title": "American Community Survey 3-Year Estimates",
+    "description": "A discontinued middle ground between the 1-year and 5-year ACS — more current than the 5-year but available for smaller areas than the 1-year. Available for places with 20,000+ population. Only covers 2007-2013 (discontinued after that). Useful for historical research or for bridging the gap between the 1-year and 5-year estimates in that era.",
+    "vintages": [2007, 2008, 2009, 2011, 2012, 2013],
+    "endpoint": "acs/acs3"
+  },
+  {
+    "id": "acs/flows",
+    "title": "ACS Migration Flows",
+    "description": "Tracks where people moved from and to between counties, metro areas, and states. Based on ACS data comparing current residence to residence one year prior. Answers questions like: Where are people moving when they leave San Francisco? Which counties are gaining the most in-migrants from New York? Great for studying migration patterns, population churning, and regional demographic shifts.",
+    "vintages": [2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022],
+    "endpoint": "acs/flows"
+  },
+  {
+    "id": "dec/pl",
+    "title": "Decennial Census: Redistricting Data (PL 94-171)",
+    "description": "The first data released after each Decennial Census, required by law for congressional redistricting. Contains total population counts, race and ethnicity, voting-age population, and housing unit counts at very granular geographies including blocks. Use this for official population totals, understanding racial/ethnic composition, or any analysis requiring the finest geographic detail. The most authoritative population count available.",
+    "vintages": [2000, 2010, 2020],
+    "endpoint": "dec/pl"
+  },
+  {
+    "id": "dec/sf1",
+    "title": "Decennial Census: Summary File 1",
+    "description": "Detailed population and housing data from the 2000 and 2010 Decennial Censuses. Goes deeper than PL 94-171 — includes age distributions, household relationships, family types, housing occupancy, and more detailed race/ethnicity breakdowns. The full-count (not sampled) data for 2000 and 2010. Use for historical demographic analysis or when you need the complete universe of population characteristics from those years.",
+    "vintages": [2000, 2010],
+    "endpoint": "dec/sf1"
+  },
+  {
+    "id": "dec/dhc",
+    "title": "Decennial Census: Demographic and Housing Characteristics (2020)",
+    "description": "The 2020 Census equivalent of Summary File 1. Full-count data on age, sex, race, ethnicity, household type, family structure, and housing units. Note: 2020 Census data uses differential privacy noise injection, which can cause issues for small areas. Replaces SF1 for the 2020 Census. Use for current (2020) detailed demographic profiles at any geography level down to blocks.",
+    "vintages": [2020],
+    "endpoint": "dec/dhc"
+  },
+  {
+    "id": "dec/dp",
+    "title": "Decennial Census: Demographic Profile (2020)",
+    "description": "A condensed summary of 2020 Census data organized into four topic areas: social, economic, housing, and demographic characteristics. Easier to use than the full DHC for quick overviews. Provides percentage distributions and key summary statistics for states, counties, and census tracts. Great starting point for a demographic snapshot of any area without navigating hundreds of detailed tables.",
+    "vintages": [2020],
+    "endpoint": "dec/dp"
+  },
+  {
+    "id": "dec/ddhca",
+    "title": "Decennial Census: Detailed Demographic and Housing Characteristics File A (2020)",
+    "description": "Highly granular 2020 Census data with detailed cross-tabulations of race and Hispanic origin combined with age, sex, household type, and housing characteristics. Goes deeper than DHC for specific racial and ethnic group analysis. Useful when you need to understand the demographic composition of specific communities at fine geographic levels — for example, age structure of the Native American population by county.",
+    "vintages": [2020],
+    "endpoint": "dec/ddhca"
+  },
+  {
+    "id": "pep/population",
+    "title": "Population Estimates Program: Total Population",
+    "description": "Annual population estimates for states, counties, and metro areas in years between Decennial Censuses. Built by the Census Bureau using birth, death, and migration data layered onto the most recent Census count. Answers: What is the current population of this county? Which counties are growing fastest? Useful for any time-sensitive analysis where you need population data more recent than the last Decennial Census.",
+    "vintages": [2015, 2016, 2017, 2018, 2019, 2021],
+    "endpoint": "pep/population"
+  },
+  {
+    "id": "pep/charagegroups",
+    "title": "Population Estimates: Demographic Characteristics by Age Groups",
+    "description": "Annual estimates of population broken down by age group, sex, race, and Hispanic origin for states and counties. Useful for tracking how the age structure of a population is changing year to year — for example, how the 65+ population has grown in a county, or the size of the school-age population. Covers years between Decennial Censuses.",
+    "vintages": [2015, 2016, 2017, 2018, 2019],
+    "endpoint": "pep/charagegroups"
+  },
+  {
+    "id": "pep/components",
+    "title": "Population Estimates: Components of Change",
+    "description": "Shows the building blocks of population change: births, deaths, domestic migration, and international migration for states and counties. Answers: Is a county growing because of natural increase (more births than deaths) or because people are moving in? What is the net migration flow for this state? Essential for understanding why populations are changing, not just whether they are.",
+    "vintages": [2015, 2016, 2017, 2018, 2019],
+    "endpoint": "pep/components"
+  },
+  {
+    "id": "cps/basic/jan",
+    "title": "Current Population Survey: Basic Monthly (January)",
+    "description": "The monthly CPS is the source of the national unemployment rate. Covers labor force participation, employment status, occupation, industry, hours worked, and earnings for the U.S. civilian noninstitutional population age 15+. Each month is a separate endpoint (cps/basic/jan through cps/basic/dec). Data goes back to 1989. Use for analyzing labor market conditions, unemployment trends, or workforce characteristics at the national and state level.",
+    "vintages": [1989, 1990, 1991, 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026],
+    "endpoint": "cps/basic/jan"
+  },
+  {
+    "id": "cps/asec/mar",
+    "title": "Current Population Survey: Annual Social and Economic Supplement (ASEC)",
+    "description": "The March CPS supplement — the primary source for official U.S. poverty rates, income distribution, and health insurance coverage statistics. Goes far deeper than the basic monthly CPS. Covers total household income, earnings from all sources, poverty status, health insurance coverage, program participation (food stamps, Medicaid, Social Security, etc.), and work experience. Published annually. Use for income inequality analysis, poverty research, or welfare program studies.",
+    "vintages": [1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025],
+    "endpoint": "cps/asec/mar"
+  },
+  {
+    "id": "cps/school/oct",
+    "title": "Current Population Survey: School Enrollment Supplement",
+    "description": "Annual October supplement on school and college enrollment. Covers enrollment rates by age, grade level (nursery through graduate school), type of school (public/private), attendance status, and demographic characteristics. Answers questions like: What percentage of 18-24 year olds are enrolled in college? How do enrollment rates differ by race and income? The primary source for national school enrollment statistics.",
+    "vintages": [1994, 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024],
+    "endpoint": "cps/school/oct"
+  },
+  {
+    "id": "cps/foodsec/dec",
+    "title": "Current Population Survey: Food Security Supplement",
+    "description": "Annual December supplement measuring food security and hunger in U.S. households. Uses a standardized scale to classify households as food secure, low food security, or very low food security. Includes questions about whether families cut meal sizes, skipped meals, or couldn't afford balanced meals. The official government source for food insecurity statistics. Useful for studying hunger, food assistance needs, and the adequacy of nutrition programs.",
+    "vintages": [2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024],
+    "endpoint": "cps/foodsec/dec"
+  },
+  {
+    "id": "cps/voting/nov",
+    "title": "Current Population Survey: Voting and Registration Supplement",
+    "description": "Conducted every even-numbered (election) year in November. Covers voter registration and voting participation by age, sex, race, ethnicity, education, income, and citizenship status. The primary source for understanding who votes and who doesn't in U.S. elections. Answers: What percentage of Black adults voted in 2020? How do turnout rates differ by education level? Useful for civic participation research and election analysis.",
+    "vintages": [1994, 1996, 1998, 2000, 2002, 2004, 2006, 2008, 2010, 2012, 2014, 2016, 2018, 2020, 2022, 2024],
+    "endpoint": "cps/voting/nov"
+  },
+  {
+    "id": "cps/internet/nov",
+    "title": "Current Population Survey: Computer and Internet Use Supplement",
+    "description": "Periodic November supplement measuring computer and internet access and use across U.S. households. Covers device ownership (computers, smartphones, tablets), internet access at home, type of internet connection, and reasons for non-use. Useful for studying the digital divide — differences in technology access by income, age, race, geography, and education level.",
+    "vintages": [1994, 2017, 2019, 2021, 2023],
+    "endpoint": "cps/internet/nov"
+  },
+  {
+    "id": "cps/tobacco/jan",
+    "title": "Current Population Survey: Tobacco Use Supplement",
+    "description": "Periodic January supplement on tobacco use patterns in the U.S. adult population. Covers current and former smoking status, frequency of use, smokeless tobacco use, e-cigarette use (in recent waves), exposure to secondhand smoke, and cessation attempts. Collected periodically since 2007. The primary national source for tobacco use prevalence statistics used in public health research and policy.",
+    "vintages": [2007, 2011, 2015, 2019, 2023],
+    "endpoint": "cps/tobacco/jan"
+  },
+  {
+    "id": "cps/volunteer/sep",
+    "title": "Current Population Survey: Volunteering and Civic Life Supplement",
+    "description": "Annual September supplement (through 2015, then less frequent) measuring formal volunteering, informal helping, and civic engagement among U.S. adults. Covers volunteer participation rates, types of organizations volunteered with, hours donated, and whether people helped neighbors informally. Useful for studying social capital, community engagement, and nonprofit sector workforce across demographic groups.",
+    "vintages": [2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2019, 2021, 2023],
+    "endpoint": "cps/volunteer/sep"
+  },
+  {
+    "id": "cbp",
+    "title": "County Business Patterns",
+    "description": "Annual data on number of establishments, employment, and payroll by industry (NAICS code) for every U.S. county, metro area, state, and ZIP code (see zbp). Goes back to 1986. Answers questions like: How many manufacturing jobs are in this county? How has retail employment changed over time? How many small businesses (1-4 employees) operate in this ZIP code? One of the most widely used datasets for economic and business research at the local level.",
+    "vintages": [1986, 1987, 1988, 1989, 1990, 1991, 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023],
+    "endpoint": "cbp"
+  },
+  {
+    "id": "zbp",
+    "title": "ZIP Code Business Patterns",
+    "description": "Same as County Business Patterns but at the ZIP code level. Annual data on establishments, employment, and payroll by NAICS industry. Extremely useful for hyper-local economic analysis — what industries dominate a particular ZIP code, how is business activity distributed within a metro area? Available 1994-2018. Note: ZIP codes with fewer than 3 establishments in a category may have suppressed data.",
+    "vintages": [1994, 1995, 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018],
+    "endpoint": "zbp"
+  },
+  {
+    "id": "nonemp",
+    "title": "Nonemployer Statistics",
+    "description": "Annual data on businesses with no paid employees (sole proprietors and self-employed individuals with no staff). Covers number of firms and total receipts by industry and geography (national, state, county, metro area). These are the freelancers, gig workers, independent contractors, and one-person businesses — a major and often underrepresented part of the economy. Available 1997 onward. Essential for understanding the full scope of business activity beyond traditional employer firms.",
+    "vintages": [1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023],
+    "endpoint": "nonemp"
+  },
+  {
+    "id": "ecnbasic",
+    "title": "Economic Census: Basic Statistics",
+    "description": "Conducted every 5 years (years ending in 2 and 7), the Economic Census is the most comprehensive measure of U.S. business activity. The basic file covers number of establishments, employment, payroll, and total receipts/sales by industry for all sectors of the economy. Far more detailed and complete than annual surveys. Answers: What is the total revenue of all retail establishments in this state? How many people work in the food service industry in this metro area?",
+    "vintages": [2012, 2017, 2022],
+    "endpoint": "ecnbasic"
+  },
+  {
+    "id": "ecnnapcsprd",
+    "title": "Economic Census: Products by Industry",
+    "description": "From the Economic Census (conducted every 5 years), this file shows what specific products and services each industry produces and sells. Useful for supply chain analysis, market research, and understanding the product mix of industries. For example: What percentage of auto repair shops' revenue comes from tires versus labor? What products do metal fabricators sell most?",
+    "vintages": [2017, 2022],
+    "endpoint": "ecnnapcsprd"
+  },
+  {
+    "id": "ecnnapcsind",
+    "title": "Economic Census: Industry by Products",
+    "description": "The inverse of ecnnapcsprd — for a given product or service, shows which industries produce it. Useful for understanding competition and market structure: what industries compete to supply a particular good or service? From the Economic Census (every 5 years). Complement to ecnnapcsprd for full input-output style analysis.",
+    "vintages": [2017, 2022],
+    "endpoint": "ecnnapcsind"
+  },
+  {
+    "id": "abscb",
+    "title": "Annual Business Survey: Characteristics of Businesses",
+    "description": "Annual survey of employer firms covering ownership characteristics — specifically whether businesses are minority-owned, women-owned, veteran-owned, or family-owned. Also covers financing, technology use, and innovation activities. Fills the gap between Economic Census years. Answers: How many women-owned businesses are there in the tech sector? What percentage of Hispanic-owned firms had difficulty obtaining financing?",
+    "vintages": [2017, 2018, 2019, 2020, 2021, 2022, 2023],
+    "endpoint": "abscb"
+  },
+  {
+    "id": "abscbo",
+    "title": "Annual Business Survey: Characteristics of Business Owners",
+    "description": "Companion to abscb, focusing on the owners themselves rather than their businesses. Covers demographics of business owners (age, education, sex, race, ethnicity, veteran status, disability status), prior work experience, and reasons for starting the business. Useful for studying entrepreneurship, who starts businesses in America, and disparities in business ownership across demographic groups.",
+    "vintages": [2017, 2018, 2019, 2020, 2021, 2022, 2023],
+    "endpoint": "abscbo"
+  },
+  {
+    "id": "abscs",
+    "title": "Annual Business Survey: Company Summary",
+    "description": "Annual summary of employer firm data from the Annual Business Survey, including number of firms, employment, payroll, and receipts by demographic ownership category (race, ethnicity, sex, veteran status) and NAICS industry. Provides a high-level national picture of the diversity of business ownership by sector. Best for broad questions about minority and women business ownership trends over time.",
+    "vintages": [2017, 2018, 2019, 2020, 2021, 2022, 2023],
+    "endpoint": "abscs"
+  },
+  {
+    "id": "ewks",
+    "title": "Economy-Wide Key Statistics (Economic Census)",
+    "description": "Summary statistics from the Economic Census covering the entire economy — total establishments, employment, payroll, and output across all sectors. Provides the definitive economy-wide benchmarks at national, state, and county levels. Conducted every 5 years. Useful for understanding the overall scale and structure of local economies and making cross-sectoral comparisons.",
+    "vintages": [1997, 2002, 2007, 2012],
+    "endpoint": "ewks"
+  },
+  {
+    "id": "timeseries/poverty/saipe",
+    "title": "Small Area Income and Poverty Estimates (SAIPE)",
+    "description": "Annual poverty and income estimates for all U.S. counties and school districts. Fills the gap between Decennial Census years when county-level poverty data would otherwise be unavailable. Covers poverty rates for all ages, children under 18, and children ages 5-17 (for school funding formulas), plus median household income. Widely used for allocating federal funds and tracking poverty trends at the county level. The go-to source for current county poverty rates.",
+    "vintages": [],
+    "endpoint": "timeseries/poverty/saipe"
+  },
+  {
+    "id": "timeseries/healthins/sahie",
+    "title": "Small Area Health Insurance Estimates (SAHIE)",
+    "description": "Annual estimates of health insurance coverage for all U.S. counties and states, broken down by age, sex, income-to-poverty ratio, and race/ethnicity. The primary source for county-level health insurance coverage rates. Essential for understanding the uninsured population, evaluating the impact of Medicaid expansion, or identifying counties with high rates of uninsured residents. Complements ACS health insurance data with more targeted small-area estimates.",
+    "vintages": [],
+    "endpoint": "timeseries/healthins/sahie"
+  },
+  {
+    "id": "timeseries/idb/1year",
+    "title": "International Data Base: 1-Year Age Groups",
+    "description": "International demographic data compiled by the Census Bureau for countries around the world. Contains population by single year of age, sex, birth rates, death rates, fertility rates, life expectancy, and migration for 227 countries and areas. The 1-year version gives single-year age breakdowns. Useful for global demographic comparisons, international development research, and projections. Covers historical data and projections into the future.",
+    "vintages": [],
+    "endpoint": "timeseries/idb/1year"
+  },
+  {
+    "id": "timeseries/idb/5year",
+    "title": "International Data Base: 5-Year Age Groups",
+    "description": "Same as the 1-year IDB but with population grouped into 5-year age bands (0-4, 5-9, etc.). Covers 227 countries with birth rates, death rates, fertility rates, life expectancy, and migration estimates. Slightly more compact than the 1-year version. Use for cross-country demographic comparisons, understanding age structures of different nations, or global population research.",
+    "vintages": [],
+    "endpoint": "timeseries/idb/5year"
+  },
+  {
+    "id": "timeseries/intltrade/imports/hs",
+    "title": "International Trade: U.S. Imports by Harmonized System (HS) Code",
+    "description": "Monthly U.S. import data broken down by Harmonized System commodity code — the international standard for classifying traded goods. Shows value and quantity of imports by country of origin, port of entry, and transportation mode. Goes back many years. Use for trade policy analysis, supply chain research, or understanding what goods the U.S. buys from specific countries. The HS code system allows very granular product-level analysis.",
+    "vintages": [],
+    "endpoint": "timeseries/intltrade/imports/hs"
+  },
+  {
+    "id": "timeseries/intltrade/exports/hs",
+    "title": "International Trade: U.S. Exports by Harmonized System (HS) Code",
+    "description": "Monthly U.S. export data broken down by Harmonized System commodity code. Shows value and quantity of exports by destination country, port of export, and transportation mode. Use for trade policy research, identifying which products the U.S. exports to specific markets, or analyzing changes in export patterns over time. Pairs with the imports dataset for full trade balance analysis by product.",
+    "vintages": [],
+    "endpoint": "timeseries/intltrade/exports/hs"
+  },
+  {
+    "id": "timeseries/eits/advm3",
+    "title": "Economic Indicators: Advance Report on Durable Goods",
+    "description": "Monthly advance release of new orders for manufactured durable goods (goods expected to last 3+ years — think machinery, vehicles, electronics, appliances). This is the 'advance' estimate, released about 4 weeks after the reference month. Markets and economists watch this closely as a leading indicator of manufacturing activity and business investment. Covers total durables, defense and non-defense, and breakdowns by industry.",
+    "vintages": [],
+    "endpoint": "timeseries/eits/advm3"
+  },
+  {
+    "id": "timeseries/asm/state",
+    "title": "Annual Survey of Manufactures: State Statistics",
+    "description": "Annual data on the manufacturing sector at the state level. Covers value of shipments, value added, capital expenditures, employment, payroll, cost of materials, and energy costs by industry. Conducted annually between Economic Census years to track manufacturing trends. Use for understanding the size and composition of a state's manufacturing sector, or tracking how manufacturing activity has shifted geographically over time.",
+    "vintages": [],
+    "endpoint": "timeseries/asm/state"
+  },
+  {
+    "id": "timeseries/bds",
+    "title": "Business Dynamics Statistics",
+    "description": "Annual data on the lifecycle of U.S. businesses — how many new businesses are born, how many die, how many jobs are created by startups versus established firms, and how many jobs are destroyed. Covers establishment births/deaths, firm age and size distributions, and job creation/destruction rates by industry, geography, and firm characteristics. Essential for studying entrepreneurship, economic dynamism, and the health of the business environment.",
+    "vintages": [],
+    "endpoint": "timeseries/bds"
+  },
+  {
+    "id": "surname",
+    "title": "Census Surname List",
+    "description": "A list of surnames appearing on Decennial Census forms with their frequency in the population and racial/ethnic composition of people with each surname. Useful for name-based demographic research, studying the ethnic origins of surnames, or proxy methods for estimating racial/ethnic composition when direct data is unavailable. The 2010 version lists all surnames appearing 100 or more times.",
+    "vintages": [2000, 2010],
+    "endpoint": "surname"
+  },
+  {
+    "id": "language",
+    "title": "Detailed Languages Spoken at Home",
+    "description": "A specialized 2013 ACS table package with extremely detailed breakdowns of the hundreds of specific languages spoken at home in the U.S. — far more granular than the standard ACS language categories. Instead of just 'Spanish' or 'Asian languages,' this breaks out individual languages like Tagalog, Vietnamese, Arabic dialects, etc. For each language, includes number of speakers and English-speaking ability. Useful for linguistic diversity research or planning language access services.",
+    "vintages": [2013],
+    "endpoint": "language"
+  },
+  {
+    "id": "cre",
+    "title": "Community Resilience Estimates",
+    "description": "Measures the capacity of communities to withstand and recover from natural disasters and other emergencies. Estimates the percentage of the population with 0, 1-2, or 3+ risk factors (like limited English, low income, disability, lack of health insurance, crowded housing) that reduce resilience. Produced at the census tract level. Useful for emergency management planning, disaster risk assessment, and identifying vulnerable communities.",
+    "vintages": [2019, 2021, 2022, 2023, 2024],
+    "endpoint": "cre"
+  },
+  {
+    "id": "pdb/tract",
+    "title": "Census Planning Database: Tract Level",
+    "description": "A curated compilation of Census Bureau data assembled specifically to help planners improve survey response rates. Combines ACS, decennial Census, and other sources into a single convenient dataset at the census tract level. Includes hard-to-count population indicators, mail return rates, demographic profiles, and housing characteristics. Useful as a convenient all-in-one tract-level data file or for research on survey nonresponse and hard-to-reach populations.",
+    "vintages": [2015, 2016, 2018, 2019, 2020, 2021, 2022, 2023, 2024],
+    "endpoint": "pdb/tract"
+  },
+  {
+    "id": "rhfs",
+    "title": "Rental Housing Finance Survey",
+    "description": "Periodic survey of rental housing properties covering financing, ownership structure, property characteristics, and financial performance. Answers questions about how rental properties are owned (individual investors vs. corporations), how they are financed (mortgage types, debt levels), vacancy rates, and operating costs. Covers multifamily (5+ units) and small rental properties. Useful for housing policy research, understanding the rental market ecosystem, and studying landlord demographics.",
+    "vintages": [2015, 2018, 2021, 2024],
+    "endpoint": "rhfs"
+  }
+]
