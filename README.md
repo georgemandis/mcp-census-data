@@ -1,11 +1,10 @@
 # mcp-census-data
 
-Local MCP server wrapping the U.S. Census Bureau's 2022 Economic Census
-Products by Industry dataset (`ecnnapcsprd`).
+Local MCP server that can query any of the 1,776+ datasets in the U.S. Census Bureau API. Demographics, income, housing, business, trade, employment, and more — all through natural language via Claude Code.
 
 ## Prerequisites
 
-- Node.js 20+ (see `.nvmrc`; uses top-level `await` and built-in `fetch`)
+- Node.js 20+ (see `.nvmrc`)
 
 ## Setup
 
@@ -23,50 +22,53 @@ claude mcp add census-data node /Users/georgemandis/Projects/recurse/2026/mcp-ce
 
 Then start a **new** Claude Code session to pick up the server.
 
+## Configuration
+
+| Env var | Default | Effect |
+|---|---|---|
+| `CENSUS_API_KEY` | none | Appended to all Census API requests. Free at [census.gov/developers](https://api.census.gov/data/key_signup.html). Recommended to avoid rate limits. |
+| `CENSUS_CATALOG_MODE` | `curated` | `curated` (~45 hand-picked datasets with rich descriptions) or `full` (~566 datasets with raw Census descriptions). |
+
 ## Tools
 
-### `search_industries(keyword)`
+### Discovery chain (call in this order)
 
-Search NAICS 2022 industry codes by keyword (case-insensitive substring match).
+1. **`discover_datasets(query)`** — Search for Census datasets by topic ("income", "population", "business"). Start here.
+2. **`list_geographies(dataset, vintage)`** — See what geographic levels are available (state, county, tract, etc.).
+3. **`search_variables(dataset, vintage, query)`** — Find variable codes by keyword ("median household income").
+4. **`search_groups(dataset, vintage, query)`** — Find pre-built table groups ("Sex by Age").
+5. **`resolve_geography(name)`** — Convert "California" or "Cook County" to FIPS codes.
 
-```
-"Search for industries related to retail"
-```
+### Data retrieval
 
-### `search_products(keyword)`
+6. **`query_data(dataset, vintage, get, for, in?, predicates?)`** — Fetch actual data from the Census API.
 
-Search NAPCS 2022 product/service codes by keyword.
+### Example conversation
 
-```
-"Find product codes mentioning software"
-```
+> "What's the median household income in Cook County, Illinois?"
 
-### `query_data({ naics?, napcs?, taxstat?, variables? })`
+Claude chains the tools automatically:
+- `discover_datasets("income")` → picks ACS 5-Year
+- `search_variables("acs/acs5", 2024, "median household income")` → finds `B19013_001E`
+- `resolve_geography("Cook County")` → FIPS codes for Cook County, IL
+- `query_data(...)` → returns the answer
 
-Query the dataset. Filter by NAICS industry code, NAPCS product code, and/or
-tax status. Returns establishment counts, revenue (`NAPCSDOL`), and industry
-contribution percentages (`NAICSALL_PCT`) at the U.S. level.
+## Dataset coverage
 
-- `naics` — NAICS 2022 code (omit for all industries; use `search_industries` to find codes)
-- `napcs` — NAPCS 2022 code (omit for all products; use `search_products` to find codes)
-- `taxstat` — `"0"` taxable, `"2"` tax-exempt (omit for all)
-- `variables` — array of variable names to return (defaults to `GEO_ID`, `NAPCS2022_LABEL`, `NAICS2022_LABEL`, `ESTAB`, `NAPCSDOL`, `NAICSALL_PCT`)
+The curated catalog covers the most commonly used datasets:
+- **ACS** — demographics, income, education, housing, health insurance
+- **Decennial Census** — full population count every 10 years
+- **Population Estimates** — annual estimates between censuses
+- **CPS** — employment, income, voting, food security, internet use
+- **County/Zip Business Patterns** — establishments and payroll by industry
+- **Economic Census** — detailed business statistics every 5 years
+- **International Trade** — imports and exports by commodity
+- **Time Series** — poverty, health insurance, business dynamics
 
-```
-"Query census data for the food services industry (NAICS 722)"
-```
+Switch to `CENSUS_CATALOG_MODE=full` for access to all ~566 unique endpoints.
 
-### `list_variables()`
+See `docs/census-api-inventory.md` for the full inventory.
 
-List all variables available in the dataset with labels and concepts. Useful for
-discovering what fields you can request in `query_data`.
+## Census API docs
 
-## Notes
-
-- All queries are U.S.-total only (this dataset has no geographic breakdown).
-- No API key required (the Census API allows unauthenticated access with light rate limits).
-- The server runs over stdio and is launched as a subprocess by Claude Code.
-
-## Dataset docs
-
-https://api.census.gov/data/2022/ecnnapcsprd.html
+https://api.census.gov/data.html
