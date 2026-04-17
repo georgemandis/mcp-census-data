@@ -16,11 +16,21 @@ npm run build
 
 ## Register with Claude Code
 
+Basic (no API key, curated catalog):
+
 ```
 claude mcp add census-data node /Users/georgemandis/Projects/recurse/2026/mcp-census-data/dist/index.js
 ```
 
+With API key and/or full catalog:
+
+```
+claude mcp add -e CENSUS_API_KEY=your-key-here -e CENSUS_CATALOG_MODE=full census-data node /Users/georgemandis/Projects/recurse/2026/mcp-census-data/dist/index.js
+```
+
 Then start a **new** Claude Code session to pick up the server.
+
+To switch modes later, remove and re-add: `claude mcp remove census-data` then re-add with different `-e` flags.
 
 ## Configuration
 
@@ -28,6 +38,8 @@ Then start a **new** Claude Code session to pick up the server.
 |---|---|---|
 | `CENSUS_API_KEY` | none | Appended to all Census API requests. Free at [census.gov/developers](https://api.census.gov/data/key_signup.html). Recommended to avoid rate limits. |
 | `CENSUS_CATALOG_MODE` | `curated` | `curated` (~45 hand-picked datasets with rich descriptions) or `full` (~566 datasets with raw Census descriptions). |
+
+Both are passed via `-e` flags on `claude mcp add`.
 
 ## Tools
 
