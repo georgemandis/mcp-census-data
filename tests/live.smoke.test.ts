@@ -53,7 +53,7 @@ describe.skipIf(!process.env.CENSUS_API_KEY)("live Census API", () => {
 
   test("a dataset whose variable names are lower-case", async () => {
     const r = await queryData(client, {
-      dataset: "timeseries/eits/advm3", get: ["cell_value", "data_type_code", "category_code"],
+      dataset: "timeseries/eits/advm3", get: ["cell_value", "data_type_code", "time_slot_id", "category_code", "seasonally_adj"],
       for: "us:*", predicates: { time: "2024-01" }, limit: 3,
     });
     expect(r.rows).toHaveLength(3);
