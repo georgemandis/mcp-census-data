@@ -82,7 +82,7 @@ test("identical in-flight requests share one upstream call", async () => {
 
 test("missing-key redirect becomes a missing_key error and is not retried", async () => {
   const f = fake([keyRedirect("https://api.census.gov/data/missing_key.html")]);
-  const c = createCensusClient({ fetch: f, sleep: noSleep });
+  const c = createCensusClient({ apiKey: "", fetch: f, sleep: noSleep });
   await expect(c.getJson("2024/acs/acs5?get=NAME&for=us:1")).rejects.toMatchObject({
     kind: "missing_key",
     message: KEY_MSG,
