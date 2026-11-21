@@ -72,7 +72,7 @@ function findState(text: string): StateEntry | undefined {
  * Folds the spellings people actually type: "Saint Louis", "St. Louis" and
  * "St Louis" are one place, and so are "Doña Ana" and "Dona Ana".
  */
-function plain(text: string): string {
+export function plain(text: string): string {
   return text
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
