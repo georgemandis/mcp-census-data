@@ -88,3 +88,37 @@ test("text that opens with the query phrase outranks text that mentions it later
   expect(rank(items, "median household income", f)[0].id).toBe("B19013_001E");
   expect(rank(items, "total population", f)[0].id).toBe("B01003_001E");
 });
+
+// --- Any-word matching, used for dataset search ---
+const loose = { requireAll: false, wholeWords: true, preferShorter: false };
+
+test("with requireAll off, items matching more of the words rank higher", () => {
+  const items = [
+    { id: "saipe", label: "Small Area Income and Poverty Estimates" },
+    { id: "acs5", label: "American Community Survey", concept: "Median household income, rent, poverty" },
+    { id: "cbp", label: "County Business Patterns" },
+  ];
+  expect(rank(items, "median household income", f, loose).map((i) => i.id)).toEqual(["acs5", "saipe"]);
+});
+
+test("wholeWords matches word beginnings, not fragments inside words", () => {
+  const items = [
+    { id: "a", label: "Current Population Survey" },
+    { id: "b", label: "Housing costs", concept: "Renters and rental costs" },
+  ];
+  expect(rank(items, "rent", f, loose).map((i) => i.id)).toEqual(["b"]);
+});
+
+test("filler words alone do not match everything", () => {
+  const items = [{ id: "a", label: "Survey of the population" }];
+  expect(rank(items, "of the", f, loose)).toEqual([]);
+  expect(rank(items, "income of the people", f, loose)).toEqual([]);
+});
+
+test("an exact id still ranks first with requireAll off", () => {
+  const items = [
+    { id: "acs/acs5/profile", label: "ACS 5-Year Data Profiles acs acs5" },
+    { id: "acs/acs5", label: "American Community Survey 5-Year" },
+  ];
+  expect(rank(items, "acs/acs5", f, loose)[0].id).toBe("acs/acs5");
+});

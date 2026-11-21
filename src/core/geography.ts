@@ -15,6 +15,10 @@ interface CountyEntry {
   state_fips: string;
   fips: string;
   state_abbreviation: string;
+  /** Last data year that uses this county (Connecticut's counties: 2021). */
+  valid_through?: number;
+  /** First data year that uses this area (Connecticut's planning regions: 2022). */
+  valid_from?: number;
 }
 
 const states: StateEntry[] = JSON.parse(
@@ -32,6 +36,8 @@ export interface GeoMatch {
   state_fips?: string;
   for_clause: string;
   in_clause?: string;
+  /** Present when the code only works for some years of data. */
+  note?: string;
 }
 
 const MAX_RESULTS = 20;
@@ -39,6 +45,7 @@ const MAX_RESULTS = 20;
 /** What the Census Bureau calls a county-equivalent, by state. */
 const COUNTY_SUFFIXES = [
   "county",
+  "planning region",
   "parish",
   "borough",
   "census area",
@@ -61,8 +68,33 @@ function findState(text: string): StateEntry | undefined {
   );
 }
 
+/**
+ * Folds the spellings people actually type: "Saint Louis", "St. Louis" and
+ * "St Louis" are one place, and so are "Doña Ana" and "Dona Ana".
+ */
+function plain(text: string): string {
+  return text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/\bsainte\b|\bste\./g, "ste")
+    .replace(/\bsaint\b|\bst\./g, "st")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function validityNote(c: CountyEntry): string | undefined {
+  if (c.valid_through !== undefined) {
+    return `Census data for ${c.valid_through + 1} and later does not use this county. For newer data, look up the area that replaced it (in Connecticut, a planning region).`;
+  }
+  if (c.valid_from !== undefined) {
+    return `Census data for ${c.valid_from - 1} and earlier does not use this area.`;
+  }
+  return undefined;
+}
+
 function tier(name: string, kw: string, suffixes: string[] = []): number | undefined {
-  const n = name.toLowerCase();
+  const n = plain(name);
   if (n === kw) return EXACT;
   if (suffixes.some((s) => n === `${kw} ${s}`)) return EXACT_WITH_SUFFIX;
   if (n.startsWith(kw)) return PREFIX;
@@ -79,7 +111,7 @@ export function resolveGeography(
   name: string,
   level?: "state" | "county"
 ): GeoMatch[] {
-  let kw = name.trim().toLowerCase().replace(/\s+/g, " ");
+  let kw = plain(name);
   if (!kw) return [];
 
   let within: StateEntry | undefined;
@@ -88,6 +120,13 @@ export function resolveGeography(
     within = findState(kw.slice(comma + 1));
     kw = kw.slice(0, comma).trim();
     if (!kw) return [];
+  }
+
+  // "Washington, DC" is the District itself, which Census treats as a state.
+  if (within?.abbreviation === "DC" && kw === "washington" && level !== "county") {
+    return [
+      { fips: within.fips, name: within.name, level: "state", for_clause: `state:${within.fips}` },
+    ];
   }
 
   const found: Array<{ match: GeoMatch; tier: number; order: number }> = [];
@@ -116,6 +155,7 @@ export function resolveGeography(
       const t = tier(c.name, kw, COUNTY_SUFFIXES);
       if (t === undefined) continue;
       const state = stateByFips.get(c.state_fips);
+      const note = validityNote(c);
       found.push({
         tier: t,
         order: 1,
@@ -126,6 +166,7 @@ export function resolveGeography(
           state_fips: c.state_fips,
           for_clause: `county:${c.fips}`,
           in_clause: `state:${c.state_fips}`,
+          ...(note ? { note } : {}),
         },
       });
     }

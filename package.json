@@ -15,6 +15,7 @@
     "start": "node dist/stdio.js",
     "start:http": "node dist/http.js",
     "build:catalog": "node dist/scripts/build-catalog.js",
+    "build:geo": "node dist/scripts/build-geo.js",
     "dev": "tsc --watch"
   },
   "dependencies": {

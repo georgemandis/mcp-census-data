@@ -36,6 +36,9 @@ export function loadCatalog(next: DatasetEntry[]): void {
 }
 
 export function searchDatasets(query: string, limit = DEFAULT_LIMIT): DatasetEntry[] {
+  // People search with specific phrases ("median household income"); the broad
+  // dataset that covers it rarely contains every word, so one word is enough
+  // and fuller matches rank higher.
   // The catalog lists hand-picked datasets first, most useful first, so ties
   // keep that order instead of favouring whichever has the shortest blurb.
   return rank(
@@ -47,7 +50,7 @@ export function searchDatasets(query: string, limit = DEFAULT_LIMIT): DatasetEnt
       secondary: d.description,
       boost: d.curated ? CURATED_BOOST : 0,
     }),
-    { preferShorter: false }
+    { preferShorter: false, requireAll: false, wholeWords: true }
   ).slice(0, limit);
 }
 

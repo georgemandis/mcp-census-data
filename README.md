@@ -92,6 +92,7 @@ docker run -p 8787:8787 -e CENSUS_API_KEY=your-key mcp-census-data
 npm test                 # unit tests; the network is mocked
 CENSUS_API_KEY=... npm test   # also runs the live smoke test
 npm run build:catalog    # refresh data/catalog.json from the Census API
+CENSUS_API_KEY=... npm run build:geo   # refresh data/counties.json
 ```
 
 The catalog is generated. Hand-written titles and descriptions for the most

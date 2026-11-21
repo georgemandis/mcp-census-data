@@ -20,8 +20,8 @@ test("a curated dataset outranks a non-curated one with an equal match", () => {
 test("searching an exact dataset id returns it first", () =>
   expect(searchDatasets("acs/acs5")[0].id).toBe("acs/acs5"));
 
-test("description words are searched", () =>
-  expect(searchDatasets("poverty housing").map((d) => d.id)).toEqual(["acs/acs5"]));
+test("description words are searched, and the fullest match comes first", () =>
+  expect(searchDatasets("poverty housing")[0].id).toBe("acs/acs5"));
 
 test("the timeseries flag surfaces", () =>
   expect(searchDatasets("saipe poverty")[0]).toMatchObject({ timeseries: true, vintages: [] }));
@@ -48,4 +48,12 @@ test("equal matches keep catalog order, however long the description", () => {
     { id: "cre", title: "Community Resilience Estimates", description: "Risk, income.", vintages: [2023], timeseries: false, curated: true },
   ]);
   expect(searchDatasets("income").map((d) => d.id)).toEqual(["acs/acs5", "cre"]);
+});
+
+test("a specific phrase still finds the broad dataset that covers it", () => {
+  loadCatalog([
+    { id: "acs/acs5", title: "American Community Survey 5-Year Estimates", description: "Covers demographics, income, poverty, housing.", vintages: [2024], timeseries: false, curated: true },
+    { id: "cbp", title: "County Business Patterns", description: "Establishments and payroll.", vintages: [2022], timeseries: false, curated: true },
+  ]);
+  expect(searchDatasets("median household income").map((d) => d.id)).toEqual(["acs/acs5"]);
 });

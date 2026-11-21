@@ -73,3 +73,33 @@ test("a 404 from the geography file says the dataset was not found", async () =>
     message: expect.stringContaining("Dataset acs/acs5 for 2031 was not found"),
   });
 });
+
+test("a Connecticut county carries a note that it ended in 2021", () => {
+  const [m] = resolveGeography("Fairfield County, CT");
+  expect(m.for_clause).toBe("county:001");
+  expect(m.note).toBe(
+    "Census data for 2022 and later does not use this county. For newer data, look up the area that replaced it (in Connecticut, a planning region)."
+  );
+});
+
+test("Connecticut planning regions resolve, with a note that they start in 2022", () => {
+  const [m] = resolveGeography("Capitol, CT");
+  expect(m).toMatchObject({ name: "Capitol Planning Region, Connecticut", for_clause: "county:110", in_clause: "state:09" });
+  expect(m.note).toBe("Census data for 2021 and earlier does not use this area.");
+});
+
+test("ordinary counties carry no note", () =>
+  expect(resolveGeography("Cook County, IL")[0]).not.toHaveProperty("note"));
+
+test("'Washington, DC' resolves to the District", () =>
+  expect(resolveGeography("Washington, DC")[0]).toMatchObject({ level: "state", fips: "11" }));
+
+test("'Saint' and 'St.' are interchangeable", () => {
+  expect(resolveGeography("Saint Louis County, MO")[0].name).toBe("St. Louis County, Missouri");
+  expect(resolveGeography("St Louis, MO").map((m) => m.name)).toContain("St. Louis city, Missouri");
+});
+
+test("accents are optional", () => {
+  expect(resolveGeography("Dona Ana County, NM")[0].name).toBe("Doña Ana County, New Mexico");
+  expect(resolveGeography("Doña Ana")[0].for_clause).toBe("county:013");
+});

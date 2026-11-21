@@ -14,6 +14,21 @@ export interface SearchFields {
   boost?: number;
 }
 
+export interface RankOptions {
+  /** On an equal score, put the shorter text first. Default true. */
+  preferShorter?: boolean;
+  /**
+   * Default true: every query word must appear. When false, one meaningful
+   * word is enough and items matching more of them rank higher; filler words
+   * ("of", "the") are ignored.
+   */
+  requireAll?: boolean;
+  /** Match the start of a word ("rent" finds "rental", not "current"). Default false. */
+  wholeWords?: boolean;
+}
+
+const FILLER = new Set(["a", "an", "and", "by", "for", "in", "of", "on", "the", "to", "with"]);
+
 /**
  * Keeps items where every query word appears somewhere in id, primary or
  * secondary, in any order. Best matches first; on an equal score the shorter
@@ -25,10 +40,14 @@ export function rank<T>(
   items: T[],
   query: string,
   fields: (item: T) => SearchFields,
-  options: { preferShorter?: boolean } = {}
+  options: RankOptions = {}
 ): T[] {
   const preferShorter = options.preferShorter ?? true;
-  const tokens = tokenize(query);
+  const requireAll = options.requireAll ?? true;
+  const wholeWords = options.wholeWords ?? false;
+  const tokens = requireAll
+    ? tokenize(query)
+    : tokenize(query).filter((t) => !FILLER.has(t));
   if (tokens.length === 0) return [];
   const wanted = query.trim().toLowerCase();
   const phrase = tokens.join(" ");
@@ -39,10 +58,15 @@ export function rank<T>(
     const id = f.id.toLowerCase();
     const primary = f.primary.toLowerCase();
     const all = `${id} ${primary} ${(f.secondary ?? "").toLowerCase()}`;
-    if (!tokens.every((t) => all.includes(t))) return;
+    const words = wholeWords ? tokenize(all) : [];
+    const has = (t: string) =>
+      wholeWords ? words.some((w) => w.startsWith(t)) : all.includes(t);
+    const matched = tokens.filter(has).length;
+    if (requireAll ? matched < tokens.length : matched === 0) return;
 
     let score = 1 + (f.boost ?? 0);
-    if (id === wanted) score += 100;
+    if (!requireAll) score += Math.round((100 * matched) / tokens.length);
+    if (id === wanted) score += 1000;
     if (primary.startsWith(tokens[0])) score += 50;
     // Compare as plain words so "Estimate!!Median household income" and
     // "Median Household Income" both read as phrases.
