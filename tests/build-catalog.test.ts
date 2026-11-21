@@ -55,3 +55,13 @@ test("the shipped catalog has every hand-written description merged in", async (
     Object.keys(curated).length
   );
 });
+
+test("hand-described datasets come first, in the order they were written", () => {
+  const order = {
+    "timeseries/poverty/saipe": { title: "SAIPE", description: "s" },
+    "acs/acs5": { title: "ACS5", description: "a" },
+  };
+  expect(buildCatalog(raw, order).map((d) => d.id)).toEqual([
+    "timeseries/poverty/saipe", "acs/acs5", "cbp",
+  ]);
+});

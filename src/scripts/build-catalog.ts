@@ -54,6 +54,11 @@ export function buildCatalog(raw: RawDataset[], curated: CuratedText): DatasetEn
     }
   }
 
+  // Hand-described datasets first, in the order they were written (most useful
+  // first); search keeps this order on ties. The rest follow by id.
+  const curatedOrder = new Map(Object.keys(curated).map((id, i) => [id, i]));
+  const position = (id: string) => curatedOrder.get(id) ?? Infinity;
+
   return [...byId.values()]
     .map(({ entry }) => {
       entry.vintages.sort((a, b) => a - b);
@@ -62,7 +67,10 @@ export function buildCatalog(raw: RawDataset[], curated: CuratedText): DatasetEn
         ? { ...entry, title: text.title, description: text.description, curated: true }
         : entry;
     })
-    .sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    .sort(
+      (a, b) =>
+        position(a.id) - position(b.id) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)
+    );
 }
 
 async function main(): Promise<void> {

@@ -69,3 +69,22 @@ test("punctuation and repeated spaces are ignored", () => {
 
 test("a query with no letters or digits matches nothing", () =>
   expect(rank([{ id: "a", label: "x" }], " !! ", f)).toEqual([]));
+
+test("on an equal score the more specific (shorter) text wins", () => {
+  const items = [
+    { id: "B19202G_001E", label: "Estimate!!Median nonfamily household income in the past 12 months", concept: "Median Nonfamily Household Income (Householder of Two or More Races)" },
+    { id: "B19013_001E", label: "Estimate!!Median household income in the past 12 months", concept: "Median Household Income" },
+  ];
+  expect(rank(items, "median household income", f)[0].id).toBe("B19013_001E");
+});
+
+test("text that opens with the query phrase outranks text that mentions it later", () => {
+  const items = [
+    { id: "B25099_001E", label: "Estimate!!Median household income:!!Total:", concept: "Mortgage Status by Median Household Income" },
+    { id: "B19013_001E", label: "Estimate!!Median household income in the past 12 months", concept: "Median Household Income in the Past 12 Months" },
+    { id: "B01003_001E", label: "Estimate!!Total", concept: "Total Population" },
+    { id: "C02003_002E", label: "Estimate!!Total:!!Population of one race:", concept: "Detailed Race" },
+  ];
+  expect(rank(items, "median household income", f)[0].id).toBe("B19013_001E");
+  expect(rank(items, "total population", f)[0].id).toBe("B01003_001E");
+});

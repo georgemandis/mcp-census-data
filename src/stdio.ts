@@ -1,10 +1,12 @@
 #!/usr/bin/env node
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { createCensusClient } from "./core/client.js";
-import { VERSION } from "./core/version.js";
-import { registerTools } from "./tools.js";
+import { createServer } from "./server.js";
 
-const server = new McpServer({ name: "census-data", version: VERSION });
-registerTools(server, { client: createCensusClient() });
-await server.connect(new StdioServerTransport());
+const client = createCensusClient();
+if (!client.hasKey) {
+  console.error(
+    "[census-mcp] CENSUS_API_KEY not set: data queries will fail; metadata tools still work."
+  );
+}
+await createServer({ client }).connect(new StdioServerTransport());

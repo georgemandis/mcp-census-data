@@ -15,7 +15,9 @@ export interface DatasetEntry {
   curated: boolean;
 }
 
-const CURATED_BOOST = 10;
+// Large enough that a hand-picked dataset matched on its description beats an
+// obscure one matched on its title, small enough that an exact id still wins.
+const CURATED_BOOST = 25;
 const DEFAULT_LIMIT = 20;
 
 let catalog: DatasetEntry[] | undefined;
@@ -34,12 +36,19 @@ export function loadCatalog(next: DatasetEntry[]): void {
 }
 
 export function searchDatasets(query: string, limit = DEFAULT_LIMIT): DatasetEntry[] {
-  return rank(entries(), query, (d) => ({
-    id: d.id,
-    primary: d.title,
-    secondary: d.description,
-    boost: d.curated ? CURATED_BOOST : 0,
-  })).slice(0, limit);
+  // The catalog lists hand-picked datasets first, most useful first, so ties
+  // keep that order instead of favouring whichever has the shortest blurb.
+  return rank(
+    entries(),
+    query,
+    (d) => ({
+      id: d.id,
+      primary: d.title,
+      secondary: d.description,
+      boost: d.curated ? CURATED_BOOST : 0,
+    }),
+    { preferShorter: false }
+  ).slice(0, limit);
 }
 
 export function getDataset(id: string): DatasetEntry | undefined {
