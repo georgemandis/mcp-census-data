@@ -12,6 +12,7 @@
  */
 import { execFile } from "node:child_process";
 import { createWriteStream, existsSync } from "node:fs";
+import { open } from "node:fs/promises";
 import { mkdir, mkdtemp, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -20,7 +21,8 @@ import { pipeline } from "node:stream/promises";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { DuckDBInstance, type DuckDBConnection } from "@duckdb/node-api";
-import { ACS_PERIOD, ACS_YEAR, columnsFor, tablesUsed } from "../profile/definition.js";
+import { createCensusClient } from "../core/client.js";
+import { ACS_PERIOD, ACS_YEAR, cellsUsed, columnsFor, tablesUsed } from "../profile/definition.js";
 import { defaultLocation, type Manifest } from "../profile/store.js";
 
 const run = promisify(execFile);
@@ -157,6 +159,54 @@ async function download(url: string, to: string): Promise<number> {
   return (await stat(to)).size;
 }
 
+/** True when a downloaded file starts like a bulk table, not an error page. */
+export async function looksLikeTable(path: string): Promise<boolean> {
+  const handle = await open(path, "r");
+  try {
+    const { buffer, bytesRead } = await handle.read(Buffer.alloc(7), 0, 7, 0);
+    return buffer.subarray(0, bytesRead).toString("utf8") === "GEO_ID|";
+  } finally {
+    await handle.close();
+  }
+}
+
+type ApiRows = (string | null)[][];
+
+/**
+ * Writes one table in the bulk-file format using the Census API, for the
+ * rare table whose bulk file the download server refuses to serve. Needs a
+ * key. Makes one request each for the nation, states and counties, and one
+ * per state for tracts.
+ */
+export async function tableFromApi(
+  client: { getJson(path: string, opts?: { requiresKey?: boolean }): Promise<unknown> },
+  table: string,
+  datPath: string,
+): Promise<void> {
+  const cells = cellsUsed(table);
+  const get = ["GEO_ID", ...cells.flatMap((c) => [`${c}E`, `${c}M`])];
+  const width = get.length;
+  const base = `${ACS_YEAR}/acs/acs5?get=${get.join(",")}`;
+  const lines = [["GEO_ID", ...columnsFor(table)].join("|")];
+
+  const fetchRows = async (geo: string): Promise<ApiRows> => {
+    const rows = (await client.getJson(`${base}&${geo}`, { requiresKey: true })) as ApiRows | null;
+    return rows ? rows.slice(1) : [];
+  };
+  const add = (rows: ApiRows) => {
+    for (const r of rows) lines.push(r.slice(0, width).map((v) => v ?? "").join("|"));
+  };
+
+  add(await fetchRows("for=us:1"));
+  const states = await fetchRows("for=state:*");
+  add(states);
+  add(await fetchRows("for=county:*"));
+  for (const s of states) {
+    add(await fetchRows(`for=tract:*&in=state:${s[0]!.slice(-2)}`));
+  }
+  await writeFile(datPath, lines.join("\n") + "\n");
+}
+
 async function main(): Promise<void> {
   const force = process.argv.includes("--force");
   const outDir = defaultLocation();
@@ -181,9 +231,22 @@ async function main(): Promise<void> {
       }
       const dat = join(stage, `${table}.dat`);
       const size = await download(tableUrl(table), dat);
+      let how = `${mb(size)} downloaded`;
+      if (!(await looksLikeTable(dat))) {
+        // The download server refuses a few file names. The API has the same figures.
+        const client = createCensusClient({ timeoutMs: 60_000 });
+        if (!client.hasKey) {
+          throw new Error(
+            `${table}: the Census download server refused ${tableUrl(table)}. ` +
+              "Set CENSUS_API_KEY and run again to fetch this table from the Census API instead.",
+          );
+        }
+        await tableFromApi(client, table, dat);
+        how = "bulk file refused, fetched from the Census API";
+      }
       tables[table] = await convertTable(dat, table, outDir);
       await rm(dat, { force: true });
-      log(`${tag}: ${mb(size)} downloaded, ${tables[table]} rows kept`);
+      log(`${tag}: ${how}, ${tables[table]} rows kept`);
     }
 
     const texts: Record<string, string> = {};

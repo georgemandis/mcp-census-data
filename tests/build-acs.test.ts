@@ -152,3 +152,58 @@ describe("checkSize", () => {
     await expect(checkSize(join(dir, "size"), 10)).rejects.toThrow(/over the .* limit/);
   });
 });
+
+describe("when the bulk file is refused", () => {
+  it("recognises a file that is not a table", async () => {
+    const { looksLikeTable } = await import("../src/scripts/build-acs.js");
+    const good = join(dir, "good.dat");
+    const bad = join(dir, "bad.dat");
+    await writeFile(good, "GEO_ID|B22003_E001|B22003_M001\n0100000US|1|1\n");
+    await writeFile(bad, "<html><head><title>Request Rejected</title></head></html>");
+    expect(await looksLikeTable(good)).toBe(true);
+    expect(await looksLikeTable(bad)).toBe(false);
+  });
+
+  it("writes the same file format from the Census API", async () => {
+    const { tableFromApi } = await import("../src/scripts/build-acs.js");
+    const paths: string[] = [];
+    const head = ["GEO_ID", "B19013_001E", "B19013_001M"];
+    const client = {
+      async getJson(path: string) {
+        paths.push(path);
+        const geo = new URL(`https://x/${path}`).searchParams;
+        if (geo.get("for") === "us:1") return [[...head, "us"], ["0100000US", "80000", "200", "1"]];
+        if (geo.get("for") === "state:*")
+          return [[...head, "state"], ["0400000US53", "95000", "500", "53"], ["0400000US11", "100000", "900", "11"]];
+        if (geo.get("for") === "county:*")
+          return [[...head, "state", "county"], ["0500000US53033", "120000", "900", "53", "033"]];
+        if (geo.get("in") === "state:53")
+          return [[...head, "state", "county", "tract"], ["1400000US53033008102", "-666666666", "-222222222", "53", "033", "008102"]];
+        return [[...head, "state", "county", "tract"], ["1400000US11001000100", null, null, "11", "001", "000100"]];
+      },
+    };
+    const out = join(dir, "api.dat");
+    await tableFromApi(client, "B19013", out);
+
+    expect(paths).toHaveLength(5);
+    expect(paths[0]).toBe("2024/acs/acs5?get=GEO_ID,B19013_001E,B19013_001M&for=us:1");
+    expect(paths.slice(3).sort()).toEqual([
+      "2024/acs/acs5?get=GEO_ID,B19013_001E,B19013_001M&for=tract:*&in=state:11",
+      "2024/acs/acs5?get=GEO_ID,B19013_001E,B19013_001M&for=tract:*&in=state:53",
+    ]);
+
+    const { readFile } = await import("node:fs/promises");
+    expect((await readFile(out, "utf8")).split("\n")).toEqual([
+      "GEO_ID|B19013_E001|B19013_M001",
+      "0100000US|80000|200",
+      "0400000US53|95000|500",
+      "0400000US11|100000|900",
+      "0500000US53033|120000|900",
+      "1400000US53033008102|-666666666|-222222222",
+      "1400000US11001000100||",
+      "",
+    ]);
+    // And the result converts like any bulk file.
+    expect(await convertTable(out, "B19013", join(dir, "out-api"))).toBe(6);
+  });
+});
