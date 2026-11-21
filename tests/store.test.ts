@@ -153,3 +153,15 @@ describe("defaultLocation", () => {
     expect(defaultLocation({ CENSUS_DATA_DIR: "https://example.org/acs" })).toBe("https://example.org/acs");
   });
 });
+
+describe("settings", () => {
+  it("caps DuckDB's memory and threads", async () => {
+    const s = await store.settings();
+    expect(s.threads).toBe(2);
+    // DuckDB reports the limit in its own units (for example "244.1 MiB").
+    const [, n, unit] = /^([\d.]+)\s*(\w+)$/.exec(s.memory_limit)!;
+    const mb = Number(n) * ({ MiB: 1.048576, MB: 1, GiB: 1073.74, GB: 1000 } as Record<string, number>)[unit];
+    expect(mb).toBeGreaterThan(250);
+    expect(mb).toBeLessThan(262);
+  });
+});

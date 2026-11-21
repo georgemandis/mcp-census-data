@@ -50,8 +50,13 @@ export interface Store {
   nearestTract(lat: number, lon: number): Promise<TractPoint | null>;
   zip(zip: string): Promise<PlacePoint | null>;
   places(name: string, state?: string): Promise<PlacePoint[]>;
+  /** The limits DuckDB is actually running with. */
+  settings(): Promise<{ memory_limit: string; threads: number }>;
   close(): Promise<void>;
 }
+
+/** Limits on DuckDB, sized for a 512 MB machine shared with Node itself. */
+export const DB_SETTINGS = { memory_limit: "256MB", threads: "2" };
 
 export class DataMissingError extends Error {
   constructor(location: string) {
@@ -123,7 +128,7 @@ export async function openStore(location: string = defaultLocation()): Promise<S
   const manifest = await readManifest(base);
   const file = (name: string) => `${base}/${name}`.replace(/'/g, "''");
 
-  const instance = await DuckDBInstance.create(":memory:");
+  const instance = await DuckDBInstance.create(":memory:", DB_SETTINGS);
   const db: DuckDBConnection = await instance.connect();
   if (isRemote(base)) {
     await db.run("INSTALL httpfs");
@@ -245,6 +250,13 @@ export async function openStore(location: string = defaultLocation()): Promise<S
         if (found.length) return found;
       }
       return [];
+    },
+
+    async settings() {
+      const [r] = await query(
+        `SELECT current_setting('memory_limit') AS memory_limit, current_setting('threads') AS threads`,
+      );
+      return { memory_limit: String(r.memory_limit), threads: Number(r.threads) };
     },
 
     async close() {

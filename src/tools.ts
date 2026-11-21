@@ -2,7 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { searchDatasets } from "./core/catalog.js";
 import type { CensusClient } from "./core/client.js";
-import { CensusError } from "./core/errors.js";
+import { BUSY_MESSAGE, CensusError } from "./core/errors.js";
 import { listGeographies, resolveGeography } from "./core/geography.js";
 import { queryData } from "./core/query.js";
 import { searchGroups, searchVariables } from "./core/variables.js";
@@ -335,6 +335,7 @@ export function registerTools(server: McpServer, deps: ToolDeps): void {
     guarded(
       "profile_place",
       async (args: { location: string; radius_miles?: number; sections?: string[] }) => {
+        if (!profileRuntime.admit()) throw new ToolError(BUSY_MESSAGE);
         try {
           const store = await profileRuntime.store();
           const located = await locate(args.location, { store, geocoder: profileRuntime.geocoder });

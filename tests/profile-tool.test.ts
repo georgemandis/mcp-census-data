@@ -33,12 +33,13 @@ const broken: Geocoder = {
   coordinates: async () => { throw new GeocoderError(); },
 };
 
-async function connect(opts: { geocoder?: Geocoder; open?: () => Promise<Store> } = {}) {
+async function connect(opts: { geocoder?: Geocoder; open?: () => Promise<Store>; maxPerMinute?: number } = {}) {
   const logs: LogEntry[] = [];
   const { client, paths } = recordingClient();
   const profile = createProfileRuntime({
     openStore: opts.open ?? (() => openStore(fixture.dir)),
     geocoder: opts.geocoder ?? working,
+    maxPerMinute: opts.maxPerMinute,
   });
   const server = new McpServer({ name: "test", version: "0" });
   registerTools(server, { client, log: (e) => logs.push(e), profile });
@@ -155,6 +156,26 @@ describe("profile_place", () => {
     expect(r.isError).toBe(true);
     expect(texts(r)[0]).toContain("Springfield city, IL");
     expect(texts(r)[0]).toContain("Springfield city, MO");
+  });
+
+  it("answers 'busy' past the per-minute ceiling, without doing any work", async () => {
+    let opens = 0;
+    let lookups = 0;
+    const { call, logs } = await connect({
+      maxPerMinute: 1,
+      open: () => {
+        opens++;
+        return openStore(fixture.dir);
+      },
+      geocoder: { ...working, address: async (t) => { lookups++; return working.address(t); } },
+    });
+    expect((await call({ location: SECRET })).isError).toBeFalsy();
+    const r = await call({ location: SECRET });
+    expect(r.isError).toBe(true);
+    expect(texts(r)[0]).toBe("The Census connector is at its request limit. Try again in a minute.");
+    expect(opens).toBe(1);
+    expect(lookups).toBe(1);
+    expect(logs.at(-1)).toMatchObject({ tool: "profile_place", ok: false });
   });
 
   describe("privacy", () => {
