@@ -43,7 +43,7 @@ export async function listGeographiesTool(args: {
   dataset: string;
   vintage: number;
 }) {
-  const levels = await listGeographies(args.dataset, args.vintage);
+  const levels = await listGeographies(client, args.dataset, args.vintage);
   const note =
     levels.length === 0
       ? "No geography information found. Check that the dataset and vintage are correct."
