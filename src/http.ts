@@ -6,6 +6,7 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { createCensusClient } from "./core/client.js";
 import { VERSION } from "./core/version.js";
 import { createServer, logToStderr } from "./server.js";
+import { defaultProfileRuntime } from "./profile/runtime.js";
 import type { ToolDeps } from "./tools.js";
 
 const MAX_BODY_BYTES = 1_000_000;
@@ -98,4 +99,6 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     deps: { client, log: logToStderr },
   });
   console.error(`[census-mcp] v${VERSION} listening on :${port} (POST /mcp, GET /health)`);
+  // Open the profile data now, not on the first person's request.
+  void defaultProfileRuntime().warm();
 }

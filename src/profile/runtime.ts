@@ -4,7 +4,8 @@
  * are built per minute so a public address cannot be run flat out.
  */
 import { createGeocoder, type Geocoder } from "./geocode.js";
-import { openStore, type Store } from "./store.js";
+import { tablesUsed } from "./definition.js";
+import { geoId, openStore, type Store } from "./store.js";
 
 export interface ProfileRuntime {
   /** The open store. A failed open is tried again on the next call. */
@@ -12,6 +13,11 @@ export interface ProfileRuntime {
   geocoder: Geocoder;
   /** Counts a profile request. False when this minute's ceiling is reached. */
   admit(): boolean;
+  /**
+   * Opens the store and reads each table once, so the first request does not
+   * wait for it. Never throws; a server without data still starts.
+   */
+  warm(): Promise<void>;
 }
 
 const DEFAULT_PER_MINUTE = 120;
@@ -37,21 +43,31 @@ export function createProfileRuntime(
   let pending: Promise<Store> | undefined;
   // Start times of admitted requests in the last minute, oldest first.
   const admitted: number[] = [];
+  const store = () => {
+    pending ??= open().catch((err) => {
+      pending = undefined;
+      throw err;
+    });
+    return pending;
+  };
   return {
     geocoder: opts.geocoder ?? createGeocoder(),
+    store,
+    async warm() {
+      try {
+        const s = await store();
+        for (const table of tablesUsed()) await s.rows(table, [geoId("us")]);
+        await s.places("warm");
+      } catch {
+        // The first profile_place call will report what is wrong.
+      }
+    },
     admit() {
       const t = now();
       while (admitted.length && t - admitted[0] > WINDOW_MS) admitted.shift();
       if (admitted.length >= limit) return false;
       admitted.push(t);
       return true;
-    },
-    store() {
-      pending ??= open().catch((err) => {
-        pending = undefined;
-        throw err;
-      });
-      return pending;
     },
   };
 }

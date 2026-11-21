@@ -48,3 +48,32 @@ describe("admit", () => {
     expect(results.filter((r) => !r)).toHaveLength(1);
   });
 });
+
+describe("warm", () => {
+  it("opens the store and reads every table once, so the first request does not pay for it", async () => {
+    const { buildFixture } = await import("./profile-fixture.js");
+    const { openStore } = await import("../src/profile/store.js");
+    const fixture = await buildFixture();
+    const read: string[] = [];
+    let opens = 0;
+    const rt = createProfileRuntime({
+      openStore: async () => {
+        opens++;
+        const store = await openStore(fixture.dir);
+        return { ...store, rows: (table, ids) => { read.push(table); return store.rows(table, ids); } };
+      },
+    });
+    await rt.warm();
+    expect(opens).toBe(1);
+    expect(new Set(read).size).toBe(30);
+    await rt.store();
+    expect(opens).toBe(1);
+    await (await rt.store()).close();
+    await fixture.cleanup();
+  });
+
+  it("never throws, even when the data is missing", async () => {
+    const rt = createProfileRuntime({ openStore: async () => { throw new Error("no data"); } });
+    await expect(rt.warm()).resolves.toBeUndefined();
+  });
+});
