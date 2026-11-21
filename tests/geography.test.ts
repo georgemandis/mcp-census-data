@@ -103,3 +103,25 @@ test("accents are optional", () => {
   expect(resolveGeography("Dona Ana County, NM")[0].name).toBe("Doña Ana County, New Mexico");
   expect(resolveGeography("Doña Ana")[0].for_clause).toBe("county:013");
 });
+
+describe("name lookups for profiles", () => {
+  it("turns a state name or code into its postal code", async () => {
+    const { stateCode } = await import("../src/core/geography.js");
+    expect(stateCode("wa")).toBe("WA");
+    expect(stateCode(" Washington ")).toBe("WA");
+    expect(stateCode("Narnia")).toBeUndefined();
+  });
+
+  it("names a state and a county from their codes", async () => {
+    const { stateName, countyName } = await import("../src/core/geography.js");
+    expect(stateName("53")).toBe("Washington");
+    expect(countyName("53033")).toBe("King County, Washington");
+    expect(stateName("99")).toBeUndefined();
+    expect(countyName("99999")).toBeUndefined();
+  });
+
+  it("names Connecticut's current planning regions", async () => {
+    const { countyName } = await import("../src/core/geography.js");
+    expect(countyName("09110")).toMatch(/Planning Region, Connecticut$/);
+  });
+});

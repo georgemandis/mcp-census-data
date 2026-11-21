@@ -202,3 +202,20 @@ export async function listGeographies(
     wildcard: g.wildcard,
   }));
 }
+
+/** Postal code for a state given its name or code ("Washington", "wa"). */
+export function stateCode(text: string): string | undefined {
+  return findState(text)?.abbreviation;
+}
+
+/** State name from its two-digit code. */
+export function stateName(fips: string): string | undefined {
+  return stateByFips.get(fips)?.name;
+}
+
+/** "King County, Washington" from a five-digit state-plus-county code. */
+export function countyName(fips: string): string | undefined {
+  const state = stateByFips.get(fips.slice(0, 2));
+  const county = counties.find((c) => c.state_fips === fips.slice(0, 2) && c.fips === fips.slice(2));
+  return state && county ? `${county.name}, ${state.name}` : undefined;
+}
