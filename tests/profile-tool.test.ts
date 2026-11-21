@@ -71,6 +71,7 @@ describe("profile_place", () => {
     const r = await call({ location: "98101" });
     expect(r.isError).toBeFalsy();
     const [note, body] = texts(r);
+    expect(note).toMatch(/within 1 mile of ZIP code area 98101/);
     expect(note).toMatch(/2 census tracts/);
     expect(note).toMatch(/3,000 people/);
     const profile = JSON.parse(body);
@@ -80,6 +81,18 @@ describe("profile_place", () => {
     expect(body).not.toMatch(/\n/);
     expect(paths).toEqual([]);
     expect(logs).toEqual([{ tool: "profile_place", ms: expect.any(Number), ok: true }]);
+  });
+
+  it("accepts a ZIP sent as a number, restoring a leading zero", async () => {
+    const { call, mcp } = await connect();
+    const r = await call({ location: 98101 });
+    expect(r.isError).toBeFalsy();
+    expect(JSON.parse(texts(r)[1]).location.label).toBe("ZIP code area 98101");
+    // 02134 arrives as 2134: it must be read as a ZIP, not as an address.
+    const z = await call({ location: 2134 });
+    expect(texts(z)[0]).toMatch(/That ZIP has no Census ZIP code area/);
+    const tool = (await mcp.listTools()).tools.find((t) => t.name === "profile_place")!;
+    expect((tool.inputSchema as any).properties.location.type).toBe("string");
   });
 
   it("passes the radius and sections through", async () => {

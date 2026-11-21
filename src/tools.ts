@@ -309,10 +309,11 @@ export function registerTools(server: McpServer, deps: ToolDeps): void {
         "Who lives near a place. Give a street address, a 5-digit ZIP, a place like 'Seattle, WA', or coordinates like '47.61, -122.33'. Returns a profile of the people living within radius_miles (default 1) of that point: age, income and poverty, work, race and origins, households and children, older adults, school, benefit programs (SNAP, Medicaid, SSI and others), housing, and a 'gaps' list comparing need with benefit receipt. Each figure has a count, a share, a margin of error and a reliability label, and is set beside the county, state and US, with a flag when the area differs from its county by more than chance. Use this first for any 'who lives here' or 'what is this neighbourhood like' question; do not assemble it from query_data. Figures are American Community Survey 5-year estimates. Each section lists its source table IDs, which query_data can use for more detail. A ZIP or place name is treated as its centre point plus the radius, not its whole area.",
       inputSchema: {
         location: z
-          .string()
-          .trim()
-          .min(1)
-          .max(200)
+          .preprocess(
+            // A ZIP sometimes arrives as a number, which drops a leading zero.
+            (v) => (typeof v === "number" && Number.isInteger(v) && v >= 0 ? String(v).padStart(5, "0") : v),
+            z.string().trim().min(1).max(200)
+          )
           .describe(
             "A street address ('400 Broad St, Seattle, WA'), a 5-digit ZIP, a place with its state ('Austin, TX'), or 'latitude, longitude'."
           ),
@@ -344,7 +345,7 @@ export function registerTools(server: McpServer, deps: ToolDeps): void {
           const { area } = profile;
           const where =
             area.radius_miles > 0
-              ? `the area within ${area.covered_miles} mile(s) of ${located.label}`
+              ? `the area within ${area.covered_miles} mile${area.covered_miles === 1 ? "" : "s"} of ${located.label}`
               : `the census tract at ${located.label}`;
           const people =
             area.population === null ? "no figures" : `${area.population.toLocaleString("en-US")} people`;
