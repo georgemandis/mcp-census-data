@@ -14,13 +14,31 @@ export interface ProfileRuntime {
   /** Counts a profile request. False when this minute's ceiling is reached. */
   admit(): boolean;
   /**
+   * Runs the work of building one profile. Only a few run at once and a few
+   * more wait their turn; beyond that it rejects with ProfileBusyError. This
+   * is what bounds memory: each profile in flight holds its rows in the heap.
+   */
+  run<T>(work: () => Promise<T>): Promise<T>;
+  /**
    * Opens the store and reads each table once, so the first request does not
    * wait for it. Never throws; a server without data still starts.
    */
   warm(): Promise<void>;
 }
 
+/** Too many profiles are already being built or waiting. */
+export class ProfileBusyError extends Error {
+  constructor() {
+    super("busy");
+    this.name = "ProfileBusyError";
+  }
+}
+
 const DEFAULT_PER_MINUTE = 120;
+// Sized for one shared CPU and 512 MB: a heavy profile is CPU-bound and all
+// profiles share one DuckDB connection, so more at once only adds memory.
+const DEFAULT_CONCURRENT = 2;
+const DEFAULT_QUEUED = 8;
 const WINDOW_MS = 60_000;
 
 /** Profiles allowed per minute: PROFILE_MAX_PER_MINUTE if a whole number above zero, else 120. */
@@ -34,12 +52,18 @@ export function createProfileRuntime(
     openStore?: () => Promise<Store>;
     geocoder?: Geocoder;
     maxPerMinute?: number;
+    maxConcurrent?: number;
+    maxQueued?: number;
     now?: () => number;
   } = {},
 ): ProfileRuntime {
   const open = opts.openStore ?? (() => openStore());
   const limit = opts.maxPerMinute ?? profileLimit();
   const now = opts.now ?? Date.now;
+  const maxConcurrent = opts.maxConcurrent ?? DEFAULT_CONCURRENT;
+  const maxQueued = opts.maxQueued ?? DEFAULT_QUEUED;
+  let running = 0;
+  const waiting: (() => void)[] = [];
   let pending: Promise<Store> | undefined;
   // Start times of admitted requests in the last minute, oldest first.
   const admitted: number[] = [];
@@ -60,6 +84,22 @@ export function createProfileRuntime(
         await s.places("warm");
       } catch {
         // The first profile_place call will report what is wrong.
+      }
+    },
+    async run(work) {
+      if (running >= maxConcurrent) {
+        if (waiting.length >= maxQueued) throw new ProfileBusyError();
+        // The finishing job hands its place straight to the next in line.
+        await new Promise<void>((resolve) => waiting.push(resolve));
+      } else {
+        running++;
+      }
+      try {
+        return await work();
+      } finally {
+        const next = waiting.shift();
+        if (next) next();
+        else running--;
       }
     },
     admit() {

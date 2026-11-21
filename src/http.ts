@@ -11,6 +11,8 @@ import type { ToolDeps } from "./tools.js";
 
 const MAX_BODY_BYTES = 1_000_000;
 
+const MAX_BATCH_MESSAGES = 10;
+
 function sendJson(res: ServerResponse, status: number, body: unknown, headers: Record<string, string> = {}): void {
   res.writeHead(status, { "content-type": "application/json", ...headers });
   res.end(JSON.stringify(body));
@@ -43,6 +45,11 @@ async function handleMcp(req: IncomingMessage, res: ServerResponse, deps: ToolDe
   } catch (e) {
     const tooLarge = (e as Error).message === "too large";
     return rpcError(res, tooLarge ? 413 : 400, tooLarge ? "Request body too large." : "Request body is not valid JSON.");
+  }
+  // One POST may carry several messages. Keep that small: a large batch is
+  // a way to ask for a great deal of work in what the proxy counts as one request.
+  if (Array.isArray(body) && body.length > MAX_BATCH_MESSAGES) {
+    return rpcError(res, 400, `A request may carry at most ${MAX_BATCH_MESSAGES} messages.`);
   }
   const server = createServer(deps);
   const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });

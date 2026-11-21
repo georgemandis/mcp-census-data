@@ -14,7 +14,7 @@ import {
   SECTION_IDS,
   buildProfile,
 } from "./profile/profile.js";
-import { defaultProfileRuntime, type ProfileRuntime } from "./profile/runtime.js";
+import { ProfileBusyError, defaultProfileRuntime, type ProfileRuntime } from "./profile/runtime.js";
 import { DataMissingError } from "./profile/store.js";
 
 export interface ToolDeps {
@@ -337,11 +337,14 @@ export function registerTools(server: McpServer, deps: ToolDeps): void {
       async (args: { location: string; radius_miles?: number; sections?: string[] }) => {
         if (!profileRuntime.admit()) throw new ToolError(BUSY_MESSAGE);
         try {
-          const store = await profileRuntime.store();
-          const located = await locate(args.location, { store, geocoder: profileRuntime.geocoder });
-          const profile = await buildProfile(located, store, {
-            radiusMiles: args.radius_miles,
-            sections: args.sections,
+          const { located, profile } = await profileRuntime.run(async () => {
+            const store = await profileRuntime.store();
+            const located = await locate(args.location, { store, geocoder: profileRuntime.geocoder });
+            const profile = await buildProfile(located, store, {
+              radiusMiles: args.radius_miles,
+              sections: args.sections,
+            });
+            return { located, profile };
           });
           const { area } = profile;
           const where =
@@ -356,6 +359,7 @@ export function registerTools(server: McpServer, deps: ToolDeps): void {
           );
         } catch (e) {
           // Fixed or input-free messages only: the location may be a home address.
+          if (e instanceof ProfileBusyError) throw new ToolError(BUSY_MESSAGE);
           if (e instanceof DataMissingError) {
             throw new ToolError(
               "The profile data has not been built on this server. Run: npm run build && npm run build:acs"

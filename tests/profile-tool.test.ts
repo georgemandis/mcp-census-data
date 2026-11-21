@@ -33,13 +33,23 @@ const broken: Geocoder = {
   coordinates: async () => { throw new GeocoderError(); },
 };
 
-async function connect(opts: { geocoder?: Geocoder; open?: () => Promise<Store>; maxPerMinute?: number } = {}) {
+async function connect(
+  opts: {
+    geocoder?: Geocoder;
+    open?: () => Promise<Store>;
+    maxPerMinute?: number;
+    maxConcurrent?: number;
+    maxQueued?: number;
+  } = {},
+) {
   const logs: LogEntry[] = [];
   const { client, paths } = recordingClient();
   const profile = createProfileRuntime({
     openStore: opts.open ?? (() => openStore(fixture.dir)),
     geocoder: opts.geocoder ?? working,
     maxPerMinute: opts.maxPerMinute,
+    maxConcurrent: opts.maxConcurrent,
+    maxQueued: opts.maxQueued,
   });
   const server = new McpServer({ name: "test", version: "0" });
   registerTools(server, { client, log: (e) => logs.push(e), profile });
@@ -176,6 +186,24 @@ describe("profile_place", () => {
     expect(opens).toBe(1);
     expect(lookups).toBe(1);
     expect(logs.at(-1)).toMatchObject({ tool: "profile_place", ok: false });
+  });
+
+  it("answers 'at its request limit' when too many profiles are already being built", async () => {
+    let release!: () => void;
+    const held = new Promise<void>((r) => (release = r));
+    const { call, logs } = await connect({
+      maxConcurrent: 1,
+      maxQueued: 0,
+      geocoder: { ...working, address: async (t) => { await held; return working.address(t); } },
+    });
+    const first = call({ location: SECRET });
+    await new Promise((r) => setTimeout(r, 20));
+    const second = await call({ location: "98101" });
+    expect(second.isError).toBe(true);
+    expect(texts(second)[0]).toBe("The Census connector is at its request limit. Try again in a minute.");
+    release();
+    expect((await first).isError).toBeFalsy();
+    expect(logs.map((l) => l.ok)).toEqual([false, true]);
   });
 
   describe("privacy", () => {

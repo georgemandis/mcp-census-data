@@ -95,3 +95,19 @@ test("profile_place answers over HTTP, sharing one open store across requests", 
     await fixture.cleanup();
   }
 });
+
+test("a batch of many messages in one POST is refused", async () => {
+  const message = (id: number) => ({ jsonrpc: "2.0", id, method: "tools/list" });
+  const post = (body: unknown) =>
+    fetch(`${base}/mcp`, {
+      method: "POST",
+      headers: { "content-type": "application/json", accept: "application/json, text/event-stream" },
+      body: JSON.stringify(body),
+    });
+  const big = await post(Array.from({ length: 11 }, (_, i) => message(i)));
+  expect(big.status).toBe(400);
+  expect((await big.json()).error.message).toMatch(/at most 10 messages/);
+  const small = await post([message(1), message(2)]);
+  expect(small.status).toBe(200);
+  await small.text();
+});

@@ -77,3 +77,66 @@ describe("warm", () => {
     await expect(rt.warm()).resolves.toBeUndefined();
   });
 });
+
+describe("run", () => {
+  const deferred = () => {
+    let release!: () => void;
+    const done = new Promise<void>((r) => (release = r));
+    return { done, release };
+  };
+
+  it("builds at most the allowed number at once, queues a few, and refuses the rest", async () => {
+    const { ProfileBusyError } = await import("../src/profile/runtime.js");
+    const rt = createProfileRuntime({ maxConcurrent: 2, maxQueued: 1 });
+    let running = 0;
+    let peak = 0;
+    const gates = [deferred(), deferred(), deferred()];
+    const work = (i: number) => async () => {
+      running++;
+      peak = Math.max(peak, running);
+      await gates[i].done;
+      running--;
+      return i;
+    };
+    const a = rt.run(work(0));
+    const b = rt.run(work(1));
+    const c = rt.run(work(2)); // queued
+    await expect(rt.run(work(0))).rejects.toBeInstanceOf(ProfileBusyError);
+    await Promise.resolve();
+    expect(running).toBe(2);
+    gates[0].release();
+    expect(await a).toBe(0);
+    await new Promise((r) => setTimeout(r, 0));
+    expect(running).toBe(2); // the queued one took the free place
+    gates[1].release();
+    gates[2].release();
+    expect(await Promise.all([b, c])).toEqual([1, 2]);
+    expect(peak).toBe(2);
+    expect(running).toBe(0);
+  });
+
+  it("frees its place when the work fails", async () => {
+    const rt = createProfileRuntime({ maxConcurrent: 1, maxQueued: 0 });
+    await expect(rt.run(async () => { throw new Error("boom"); })).rejects.toThrow("boom");
+    expect(await rt.run(async () => "ok")).toBe("ok");
+  });
+
+  it("never lets a burst of 100 exceed the limit", async () => {
+    const rt = createProfileRuntime({ maxConcurrent: 2, maxQueued: 8 });
+    let running = 0;
+    let peak = 0;
+    const results = await Promise.allSettled(
+      Array.from({ length: 100 }, () =>
+        rt.run(async () => {
+          running++;
+          peak = Math.max(peak, running);
+          await new Promise((r) => setTimeout(r, 2));
+          running--;
+        }),
+      ),
+    );
+    expect(peak).toBe(2);
+    expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(10);
+    expect(results.filter((r) => r.status === "rejected")).toHaveLength(90);
+  });
+});
