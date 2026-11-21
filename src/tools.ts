@@ -1,8 +1,8 @@
 import { z } from "zod";
-import { searchDatasets } from "./catalog.js";
-import { resolveGeography, listGeographies } from "./geography.js";
-import { searchVariables, searchGroups } from "./variables.js";
-import { queryDataRaw } from "./client.js";
+import { searchDatasets } from "./core/catalog.js";
+import { resolveGeography, listGeographies } from "./core/geography.js";
+import { searchVariables, searchGroups } from "./core/variables.js";
+import { queryDataRaw } from "./core/client.js";
 
 // --- discover_datasets ---
 

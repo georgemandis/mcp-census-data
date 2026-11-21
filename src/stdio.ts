@@ -15,10 +15,11 @@ import {
   queryDataSchema,
   queryDataTool,
 } from "./tools.js";
+import { VERSION } from "./core/version.js";
 
 const server = new McpServer({
   name: "census-data",
-  version: "0.2.0",
+  version: VERSION,
 });
 
 server.tool(
