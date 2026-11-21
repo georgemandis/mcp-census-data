@@ -76,6 +76,23 @@ export function placeKey(name: string): string {
   return plain(name).replace(PLACE_SUFFIX, "").replace(/ \(balance\)$/, "");
 }
 
+/**
+ * Everyday names for places whose official name is longer: "Nashville" for
+ * "Nashville-Davidson metropolitan government", "Honolulu" for "Urban
+ * Honolulu CDP", "Boise" for "Boise City city".
+ */
+export function placeAliases(name: string): string[] {
+  const key = placeKey(name);
+  const out = new Set<string>();
+  const first = key.split(/[-/]/)[0].trim();
+  if (first && first !== key) out.add(first.replace(/ county$/, ""));
+  if (key.startsWith("urban ")) out.add(key.slice(6));
+  if (key.endsWith(" city")) out.add(key.slice(0, -5));
+  out.delete(key);
+  out.delete("");
+  return [...out];
+}
+
 // Great-circle distance in miles between ($lat, $lon) and a row's lat/lon.
 const MILES = `3958.8 * 2 * asin(sqrt(
   pow(sin(radians(lat - $lat) / 2), 2) +
@@ -120,7 +137,11 @@ export async function openStore(location: string = defaultLocation()): Promise<S
   );
 
   const known = new Set(tablesUsed());
-  let placeIndex: Map<string, PlacePoint[]> | undefined;
+  // Three indexes, tried in order: the full official name ("pewaukee
+  // village"), the name without its type ("kansas city"), then everyday
+  // aliases ("nashville"). A looser one is used only when a stricter one
+  // finds nothing, so "Union City" never falls back to "Union".
+  let placeIndex: Map<string, PlacePoint[]>[] | undefined;
 
   async function query(
     sql: string,
@@ -200,22 +221,30 @@ export async function openStore(location: string = defaultLocation()): Promise<S
 
     async places(name, state) {
       if (!placeIndex) {
-        placeIndex = new Map();
+        const index = [new Map(), new Map(), new Map()] as Map<string, PlacePoint[]>[];
+        const add = (tier: number, key: string, p: PlacePoint) => {
+          const list = index[tier].get(key);
+          if (list) list.push(p);
+          else index[tier].set(key, [p]);
+        };
         const all = await query(
           `SELECT geoid, name, state, lat, lon FROM points WHERE kind = 'place' ORDER BY state, name`,
         );
         for (const r of all) {
           const p = toPlace(r);
-          for (const key of new Set([placeKey(p.name), plain(p.name)])) {
-            const list = placeIndex.get(key);
-            if (list) list.push(p);
-            else placeIndex.set(key, [p]);
-          }
+          add(0, plain(p.name), p);
+          add(1, placeKey(p.name), p);
+          for (const alias of placeAliases(p.name)) add(2, alias, p);
         }
+        placeIndex = index;
       }
-      const matches = placeIndex.get(placeKey(name)) ?? placeIndex.get(plain(name)) ?? [];
+      const wanted = plain(name);
       const st = state?.trim().toUpperCase();
-      return st ? matches.filter((p) => p.state === st) : [...matches];
+      for (const tier of placeIndex) {
+        const found = (tier.get(wanted) ?? []).filter((p) => !st || p.state === st);
+        if (found.length) return found;
+      }
+      return [];
     },
 
     async close() {

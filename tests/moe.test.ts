@@ -21,8 +21,9 @@ describe("sumEst", () => {
     expect(sumEst([])).toEqual({ est: null, moe: null });
   });
 
-  it("treats a missing margin beside an estimate as zero", () => {
-    expect(sumEst([e(10, null), e(20, 4)])).toEqual({ est: 30, moe: 4 });
+  it("has an unknown margin when any part's margin is unknown", () => {
+    expect(sumEst([e(10, null), e(20, 4)])).toEqual({ est: 30, moe: null });
+    expect(sumEst([e(250001, null)])).toEqual({ est: 250001, moe: null });
   });
 });
 
@@ -118,5 +119,21 @@ describe("ACS handbook worked examples", () => {
     expect(r.est).toBeCloseTo(0.322, 3);
     expect(r.moe).toBeCloseTo(0.008, 3);
     expect(reliability(r)).toBe("reliable");
+  });
+});
+
+describe("an unknown margin", () => {
+  it("is not called reliable", () => {
+    expect(reliability(e(250001, null))).toBe("margin unknown");
+  });
+
+  it("carries through a share", () => {
+    expect(share(e(50, null), e(200, 20))).toEqual({ est: 0.25, moe: null });
+    expect(share(e(50, 10), e(200, null))).toEqual({ est: 0.25, moe: null });
+  });
+
+  it("cannot support a claim of difference", () => {
+    expect(differs(e(0.9, null), e(0.2, 0.05))).toBe("not distinguishable");
+    expect(differs(e(0.9, 0.05), e(0.2, null))).toBe("not distinguishable");
   });
 });

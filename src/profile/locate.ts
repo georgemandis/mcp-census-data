@@ -49,6 +49,8 @@ const NO_PLACE = "No place by that name was found. Try a ZIP or a nearby city.";
 const NO_MATCH = "The address could not be matched. Try a ZIP or a place name.";
 const NO_SERVICE = "The address lookup service did not respond. Try a ZIP or a place name.";
 const OUTSIDE = "Those coordinates are outside the United States or its territories.";
+const NO_COORDINATE_SERVICE =
+  "The location lookup service did not respond, so those coordinates could not be placed. Try again shortly, or use a ZIP or a place name.";
 
 /** How far a point may be from the nearest tract centre and still be used. */
 const MAX_FALLBACK_MILES = 5;
@@ -126,8 +128,11 @@ export async function locate(
     if (found.length === 0) throw new LocateError(NO_PLACE);
     if (found.length > 1) {
       const candidates = found.slice(0, MAX_CANDIDATES).map(placeLabel);
+      const sameState = new Set(found.map((p) => p.state)).size === 1;
       throw new LocateError(
-        `More than one place has that name. Add a state, for example: ${candidates.join("; ")}.`,
+        sameState
+          ? `More than one place there has that name. Use the full name, for example: ${candidates.join("; ")}.`
+          : `More than one place has that name. Add a state, for example: ${candidates.join("; ")}.`,
         candidates,
       );
     }
@@ -146,10 +151,18 @@ export async function locate(
     const lat = c.lat!;
     const lon = c.lon!;
     const label = `${lat}, ${lon}`;
-    const hit = await geocoder.coordinates(lat, lon).catch(() => null);
+    let serviceDown = false;
+    const hit = await geocoder.coordinates(lat, lon).catch(() => {
+      serviceDown = true;
+      return null;
+    });
     if (hit?.tract) return { kind: "coordinates", label, lat, lon, anchor: hit.tract, exact: true };
     const nearest = await store.nearestTract(lat, lon);
-    if (!nearest || nearest.miles > MAX_FALLBACK_MILES) throw new LocateError(OUTSIDE);
+    if (!nearest || nearest.miles > MAX_FALLBACK_MILES) {
+      // Only the service can say a point is in no tract. Rural tracts are
+      // large, so distance from a tract centre alone proves nothing.
+      throw new LocateError(serviceDown ? NO_COORDINATE_SERVICE : OUTSIDE);
+    }
     return { kind: "coordinates", label, lat, lon, anchor: nearest.geoid, exact: false };
   }
 

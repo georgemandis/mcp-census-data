@@ -98,6 +98,50 @@ describe.skipIf(!built)("profile_place on built data", () => {
     },
   );
 
+  // Names people actually type, including cities whose name ends in "City",
+  // consolidated city-counties, and names shared with smaller places.
+  test.each([
+    ["New York, NY", "36"], ["Los Angeles, CA", "06"], ["Chicago, IL", "17"], ["Houston, TX", "48"],
+    ["Phoenix, AZ", "04"], ["Philadelphia, PA", "42"], ["San Antonio, TX", "48"], ["San Diego, CA", "06"],
+    ["Dallas, TX", "48"], ["Jacksonville, FL", "12"], ["Indianapolis, IN", "18"], ["Columbus, OH", "39"],
+    ["Charlotte, NC", "37"], ["Louisville, KY", "21"], ["Nashville, TN", "47"], ["Honolulu, HI", "15"],
+    ["Boise, ID", "16"], ["Augusta, GA", "13"], ["Athens, GA", "13"], ["Lexington, KY", "21"],
+    ["Kansas City, MO", "29"], ["Kansas City, KS", "20"], ["Oklahoma City, OK", "40"],
+    ["Jersey City, NJ", "34"], ["Union City, NJ", "34"], ["Salt Lake City, UT", "49"],
+    ["Iowa City, IA", "19"], ["Elk Grove Village, IL", "17"], ["St. Louis, MO", "29"],
+    ["Saint Paul, MN", "27"], ["Washington, DC", "11"], ["Anchorage, AK", "02"],
+    ["Winston-Salem, NC", "37"], ["Coeur d'Alene, ID", "16"], ["Pewaukee village, WI", "55"],
+  ])("finds %s", async (name, stateFips) => {
+    const located = await locate(name, { store, geocoder: noGeocoder });
+    expect(located.kind).toBe("place");
+    expect(located.anchor.slice(0, 2)).toBe(stateFips);
+    // The match is the place asked for, not a shorter-named neighbour.
+    const first = name.split(",")[0].replace(/^(St\.|Saint) /, "").split(/[ -]/)[0].toLowerCase();
+    expect(located.label.toLowerCase()).toContain(first);
+  });
+
+  test("Union City, NJ is not Union, NJ", async () => {
+    const located = await locate("Union City, NJ", { store, geocoder: noGeocoder });
+    expect(located.label).toBe("Union City city, NJ");
+  });
+
+  test("no count has an estimate without a margin", async () => {
+    // Only coded medians should lack a margin. If counts did, combined margins would vanish.
+    const p = await profile("10001", 10);
+    const unknown = [...p.sections.flatMap((s) => s.lines), ...p.gaps!].filter(
+      (l) => l.area?.reliability === "margin unknown",
+    );
+    expect(unknown.map((l) => l.id)).toEqual([]);
+  });
+
+  test("a top-coded tract median is shown as a bound", async () => {
+    const located = { kind: "zip" as const, label: "x", lat: 33.5, lon: -111.9, anchor: "04013105003", exact: true };
+    const p = await buildProfile(located, store, { radiusMiles: 0 });
+    expect(lineOf(p, "income", "median_household_income").area).toEqual({
+      value: 250000, bound: "or more", moe: null, reliability: "margin unknown",
+    });
+  });
+
   test("the combined-area median sits near the published medians of its tracts", async () => {
     const p = await profile("98101");
     const median = lineOf(p, "income", "median_household_income");

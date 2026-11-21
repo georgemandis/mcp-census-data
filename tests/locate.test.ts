@@ -125,12 +125,34 @@ describe("locate", () => {
     expect(r).toMatchObject({ kind: "coordinates", anchor: TRACT.A, exact: false });
   });
 
-  it("refuses coordinates far from any tract", async () => {
-    for (const g of [geocoder(down), geocoder({ coordinates: async () => null })]) {
-      const err = await locate("0, -150", { store, geocoder: g }).catch((e) => e);
-      expect(err).toBeInstanceOf(LocateError);
-      expect(err.message).toMatch(/outside the United States/);
-    }
+  it("refuses coordinates the lookup service places in no tract", async () => {
+    const g = geocoder({ coordinates: async () => null });
+    const err = await locate("0, -150", { store, geocoder: g }).catch((e) => e);
+    expect(err).toBeInstanceOf(LocateError);
+    expect(err.message).toMatch(/outside the United States/);
+  });
+
+  it("does not call coordinates foreign just because the lookup service is down", async () => {
+    const err = await locate("0, -150", { store, geocoder: geocoder(down) }).catch((e) => e);
+    expect(err).toBeInstanceOf(LocateError);
+    expect(err.message).not.toMatch(/outside the United States/);
+    expect(err.message).toMatch(/lookup service did not respond/);
+    expect(err.message).toMatch(/ZIP or a place name/);
+  });
+
+  it("asks for the full name when two places in one state share a name", async () => {
+    const err = await locate("Pewaukee, WI", { store, geocoder: geocoder() }).catch((e) => e);
+    expect(err).toBeInstanceOf(LocateError);
+    expect(err.candidates).toEqual(["Pewaukee city, WI", "Pewaukee village, WI"]);
+    expect(err.message).toMatch(/Use the full name/);
+    expect(err.message).not.toMatch(/Add a state/);
+    const r = await locate("Pewaukee village, WI", { store, geocoder: geocoder() });
+    expect(r.label).toBe("Pewaukee village, WI");
+  });
+
+  it("finds Kansas City, MO", async () => {
+    const r = await locate("Kansas City, MO", { store, geocoder: geocoder(down) });
+    expect(r.label).toBe("Kansas City city, MO");
   });
 
   it("resolves an address through the geocoder", async () => {

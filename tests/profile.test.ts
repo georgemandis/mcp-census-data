@@ -23,6 +23,10 @@ beforeAll(async () => {
       B19056_002: [10, 15], // SSI: too noisy to show for one tract
       C24030_006: [500, 20], // construction, men: makes construction the top industry
     },
+    // Tract C's median income is top-coded: the Bureau publishes 250001 with no margin.
+    [`1400000US${TRACT.C}`]: { B19013_001: [250001, null] },
+    // Tract D's is bottom-coded.
+    [`1400000US${TRACT.D}`]: { B19013_001: [2499, null] },
   });
   store = await openStore(fixture.dir);
 });
@@ -159,6 +163,31 @@ describe("buildProfile", () => {
     expect(median.home).toEqual({ value: 1000, moe: 50 });
     expect(median.county).toBe(10000);
     expect(median.vs_county).toBeUndefined();
+  });
+
+  it("shows a top-coded or bottom-coded median as a bound, not an exact reliable figure", async () => {
+    const top = await buildProfile(at(TRACT.C), store, { radiusMiles: 0 });
+    expect(line(top, "income", "median_household_income").area).toEqual({
+      value: 250000,
+      bound: "or more",
+      moe: null,
+      reliability: "margin unknown",
+    });
+    const bottom = await buildProfile(at(TRACT.D), store, { radiusMiles: 0 });
+    expect(line(bottom, "income", "median_household_income").area).toEqual({
+      value: 2500,
+      bound: "or less",
+      moe: null,
+      reliability: "margin unknown",
+    });
+    // As a home tract beside a combined area.
+    const home = await buildProfile(at(TRACT.C), store, { radiusMiles: 0.5 });
+    expect(home.area.tracts).toBe(2);
+    expect(line(home, "income", "median_household_income").home).toEqual({
+      value: 250000,
+      bound: "or more",
+      moe: null,
+    });
   });
 
   it("does not show an inequality index for a combined area", async () => {

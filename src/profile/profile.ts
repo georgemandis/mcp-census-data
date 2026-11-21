@@ -59,9 +59,17 @@ export interface OutLine {
     moe?: number | null;
     reliability?: Reliability;
     approximate?: true;
+    /** The value is a limit: the real figure is this "or more" / "or less". */
+    bound?: "or more" | "or less";
   };
   /** The tract the address is in. Only when known exactly and reliable. */
-  home?: { count?: number; share?: number; value?: number; moe: number | null };
+  home?: {
+    count?: number;
+    share?: number;
+    value?: number;
+    moe: number | null;
+    bound?: "or more" | "or less";
+  };
   county: number | null;
   state: number | null;
   us: number | null;
@@ -105,6 +113,20 @@ const round = (v: number | null, places = 0): number | null => {
   const f = 10 ** places;
   return Math.round(v * f) / f;
 };
+
+// The Bureau does not publish a median household income above $250,000 or
+// below $2,500. It publishes these two codes instead, with no margin.
+const MEDIAN_CODES: Record<number, { value: number; bound: "or more" | "or less" }> = {
+  250001: { value: 250000, bound: "or more" },
+  2499: { value: 2500, bound: "or less" },
+};
+
+/** A published median or index, with a coded median turned into a bound. */
+function publishedValue(kind: string, e: Est, places: number) {
+  const coded = kind === "median" && e.est !== null ? MEDIAN_CODES[e.est] : undefined;
+  if (coded) return { ...coded, moe: null };
+  return { value: round(e.est, places), moe: round(e.moe, places) };
+}
 
 const tablesOf = (lines: Line[]): string[] =>
   [...new Set(lines.flatMap((l) => [...l.num, ...(l.den ?? [])]).map(tableOf))].sort();
@@ -213,14 +235,13 @@ export async function buildProfile(
       state: rounded(published(stateGeo), places),
       us: rounded(published(usGeo), places),
     };
-    const key = kind === "count" ? "count" : "value";
 
     if (kind === "count") {
       const area = total(rows, areaGeos, line.num);
       out.area = { count: round(area.est, 0), moe: round(area.moe, 0), reliability: reliability(area) };
     } else if (single) {
       const area = published(areaGeos[0]);
-      out.area = { value: round(area.est, places), moe: round(area.moe, places), reliability: reliability(area) };
+      out.area = { ...publishedValue(kind, area, places), reliability: reliability(area) };
     } else if (kind === "median" && areaGeos.length > 1) {
       // Medians cannot be added. Estimate one from the combined income bands.
       const bands = INCOME_BANDS.map((b) => ({
@@ -237,7 +258,11 @@ export async function buildProfile(
     if (showHome) {
       const home = published(anchorGeo);
       if (home.est !== null && reliability(home) !== "unreliable") {
-        out.home = { [key]: round(home.est, places)!, moe: round(home.moe, places) } as OutLine["home"];
+        out.home = (
+          kind === "count"
+            ? { count: round(home.est, 0)!, moe: round(home.moe, 0) }
+            : publishedValue(kind, home, places)
+        ) as OutLine["home"];
       }
     }
     return out;

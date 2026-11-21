@@ -93,6 +93,16 @@ export async function buildFixture(
     `('place', '5363000', 'Seattle city', 'WA', 47.6205, -122.3509)`,
     `('place', '1772000', 'Springfield city', 'IL', 39.7911, -89.6446)`,
     `('place', '2970000', 'Springfield city', 'MO', 37.1943, -93.2916)`,
+    `('place', '2938000', 'Kansas City city', 'MO', 39.1238, -94.5541)`,
+    `('place', '2036000', 'Kansas City city', 'KS', 39.1235, -94.7443)`,
+    `('place', '0139000', 'Kansas town', 'AL', 33.9018, -87.5522)`,
+    `('place', '3474630', 'Union City city', 'NJ', 40.7674, -74.0323)`,
+    `('place', '3474510', 'Union CDP', 'NJ', 40.6953, -74.2697)`,
+    `('place', '4752006', 'Nashville-Davidson metropolitan government (balance)', 'TN', 36.1715, -86.7843)`,
+    `('place', '1571550', 'Urban Honolulu CDP', 'HI', 21.3294, -157.846)`,
+    `('place', '1608830', 'Boise City city', 'ID', 43.6007, -116.2312)`,
+    `('place', '5562240', 'Pewaukee city', 'WI', 43.0613, -88.2498)`,
+    `('place', '5562250', 'Pewaukee village', 'WI', 43.0822, -88.2621)`,
   );
   await db.run(
     `COPY (SELECT * FROM (VALUES ${points.join(", ")}) AS t(kind, geoid, name, state, lat, lon))

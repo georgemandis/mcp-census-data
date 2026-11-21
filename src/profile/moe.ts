@@ -9,26 +9,39 @@
 
 export interface Est {
   est: number | null;
+  /**
+   * Margin of error at the 90% level. Zero means the figure has no sampling
+   * error (a controlled estimate). Null beside an estimate means the Bureau
+   * published no margin, so the error is unknown, not zero.
+   */
   moe: number | null;
 }
 
-export type Reliability = "reliable" | "use with caution" | "unreliable" | "no data";
+export type Reliability =
+  | "reliable"
+  | "use with caution"
+  | "unreliable"
+  | "margin unknown"
+  | "no data";
 
 const Z90 = 1.645;
 const NONE: Est = { est: null, moe: null };
 
 /**
  * Sum of estimates. The margin is the root of the summed squared margins;
- * among zero estimates only the largest margin is counted, once.
+ * among zero estimates only the largest margin is counted, once. If any
+ * part's margin is unknown, so is the sum's.
  */
 export function sumEst(parts: Est[]): Est {
   let est = 0;
   let squares = 0;
   let zeroMoe = 0;
   let seen = false;
+  let unknown = false;
   for (const p of parts) {
     if (p.est === null) continue;
     seen = true;
+    if (p.moe === null) unknown = true;
     const moe = p.moe ?? 0;
     if (p.est === 0) {
       zeroMoe = Math.max(zeroMoe, moe);
@@ -38,15 +51,16 @@ export function sumEst(parts: Est[]): Est {
     }
   }
   if (!seen) return { ...NONE };
-  return { est, moe: Math.sqrt(squares + zeroMoe * zeroMoe) };
+  return { est, moe: unknown ? null : Math.sqrt(squares + zeroMoe * zeroMoe) };
 }
 
 /** Numerator as a part of the denominator. The estimate is a fraction 0..1. */
 export function share(num: Est, den: Est): Est {
   if (num.est === null || den.est === null || den.est <= 0) return { ...NONE };
   const p = num.est / den.est;
-  const mn = num.moe ?? 0;
-  const md = den.moe ?? 0;
+  if (num.moe === null || den.moe === null) return { est: p, moe: null };
+  const mn = num.moe;
+  const md = den.moe;
   const under = mn * mn - p * p * md * md;
   const root = under >= 0 ? Math.sqrt(under) : Math.sqrt(mn * mn + p * p * md * md);
   return { est: p, moe: root / den.est };
@@ -54,7 +68,8 @@ export function share(num: Est, den: Est): Est {
 
 export function reliability(e: Est): Reliability {
   if (e.est === null) return "no data";
-  const moe = e.moe ?? 0;
+  if (e.moe === null) return "margin unknown";
+  const moe = e.moe;
   if (moe === 0) return "reliable";
   if (e.est === 0) return "unreliable";
   const cv = moe / Z90 / Math.abs(e.est);
@@ -66,8 +81,9 @@ export function reliability(e: Est): Reliability {
 /** Is `a` different from `b` by more than chance, at the 90% level? */
 export function differs(a: Est, b: Est): "higher" | "lower" | "not distinguishable" {
   if (a.est === null || b.est === null) return "not distinguishable";
-  const sa = (a.moe ?? 0) / Z90;
-  const sb = (b.moe ?? 0) / Z90;
+  if (a.moe === null || b.moe === null) return "not distinguishable";
+  const sa = a.moe / Z90;
+  const sb = b.moe / Z90;
   const se = Math.sqrt(sa * sa + sb * sb);
   const diff = a.est - b.est;
   if (diff === 0) return "not distinguishable";

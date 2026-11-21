@@ -110,6 +110,30 @@ describe("places", () => {
     expect(r.map((p) => p.state)).toEqual(["IL"]);
   });
 
+  it("finds a city whose own name ends in City", async () => {
+    expect((await store.places("Kansas City", "MO")).map((p) => p.name)).toEqual(["Kansas City city"]);
+    expect((await store.places("Kansas City")).map((p) => p.state).sort()).toEqual(["KS", "MO"]);
+    expect((await store.places("Kansas", "AL")).map((p) => p.name)).toEqual(["Kansas town"]);
+  });
+
+  it("does not mistake Union City for Union", async () => {
+    expect((await store.places("Union City", "NJ")).map((p) => p.name)).toEqual(["Union City city"]);
+    expect((await store.places("Union", "NJ")).map((p) => p.name)).toEqual(["Union CDP"]);
+  });
+
+  it("finds consolidated cities under their everyday names", async () => {
+    expect((await store.places("Nashville", "TN"))[0].name).toMatch(/^Nashville-Davidson/);
+    expect((await store.places("Honolulu", "HI"))[0].name).toBe("Urban Honolulu CDP");
+    expect((await store.places("Boise", "ID"))[0].name).toBe("Boise City city");
+    expect((await store.places("Boise City", "ID"))[0].name).toBe("Boise City city");
+  });
+
+  it("tells apart two places sharing a name in one state by their full names", async () => {
+    expect(await store.places("Pewaukee", "WI")).toHaveLength(2);
+    expect((await store.places("Pewaukee city", "WI")).map((p) => p.name)).toEqual(["Pewaukee city"]);
+    expect((await store.places("Pewaukee village", "WI")).map((p) => p.name)).toEqual(["Pewaukee village"]);
+  });
+
   it("returns nothing for an unknown name", async () => {
     expect(await store.places("Nowhereville")).toEqual([]);
   });
