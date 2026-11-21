@@ -114,12 +114,30 @@ With Docker:
 
 ```
 docker build -t mcp-census-data .
-docker run -p 8787:8787 -e CENSUS_API_KEY=your-key \
-  -v "$PWD/data/acs:/data/acs:ro" -e CENSUS_DATA_DIR=/data/acs mcp-census-data
+docker run -p 8787:8787 -e CENSUS_API_KEY=your-key mcp-census-data
 ```
 
-The image does not contain the profile data; mount it as shown, or leave the
-mount out to run without `profile_place`.
+The image carries whatever is in `data/acs/` when it is built, so run
+`npm run build:acs` first if you want `profile_place` in it. Without the
+data the image still works; `profile_place` says the data has not been built.
+
+## Deploying to Fly.io
+
+`fly.toml` describes one small machine (512 MB) that sleeps when idle and
+wakes on the next request.
+
+```
+fly apps create your-app-name            # then set app = "your-app-name" in fly.toml
+fly secrets set CENSUS_API_KEY=your-key  # the key is never put in a file
+npm run deploy
+```
+
+`npm run deploy` builds, checks that the profile data is complete, and runs
+`fly deploy`. It refuses to deploy if the data has not been built.
+
+Limits that protect a public address: the Fly proxy allows 40 requests at a
+time; `profile_place` answers "at its request limit" beyond 120 calls a
+minute; requests to the Census API are capped at 120 a minute.
 
 ## Configuration
 
@@ -127,6 +145,7 @@ mount out to run without `profile_place`.
 |---|---|---|
 | `CENSUS_API_KEY` | none | Required for `query_data`. |
 | `PORT` | `8787` | HTTP port. |
+| `PROFILE_MAX_PER_MINUTE` | `120` | Ceiling on `profile_place` calls per minute. |
 | `CENSUS_DATA_DIR` | `data/acs` | Where `profile_place` reads its data: a directory, or an `https://` address serving the same files. |
 | `CENSUS_MAX_REQUESTS_PER_MINUTE` | `120` | Ceiling on requests to the Census API, to protect the key. Cached answers do not count. |
 

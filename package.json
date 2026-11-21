@@ -18,7 +18,9 @@
     "build:geo": "node dist/scripts/build-geo.js",
     "dev": "tsc --watch",
     "check:profile": "node dist/scripts/check-profile.js",
-    "build:acs": "node dist/scripts/build-acs.js"
+    "build:acs": "node dist/scripts/build-acs.js",
+    "deploy:check": "node dist/scripts/deploy-check.js",
+    "deploy": "npm run build && npm run deploy:check && fly deploy"
   },
   "dependencies": {
     "@duckdb/node-api": "^2.0.1-r.1",

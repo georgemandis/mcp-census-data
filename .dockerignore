@@ -10,4 +10,4 @@ tests
 *.txt
 *.log
 .DS_Store
-data/acs
+fly.toml

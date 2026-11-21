@@ -1,0 +1,29 @@
+# Fly.io configuration. Deploy with: npm run deploy
+# The Census API key is a Fly secret (fly secrets set CENSUS_API_KEY=...),
+# never a value in this file.
+app = "census-data"
+primary_region = "iad"
+
+[http_service]
+  internal_port = 8787
+  force_https = true
+  # Sleep when idle; the Fly proxy wakes the machine on the next request.
+  auto_stop_machines = "suspend"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [http_service.concurrency]
+    type = "requests"
+    soft_limit = 20
+    hard_limit = 40
+
+  [[http_service.checks]]
+    method = "GET"
+    path = "/health"
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "10s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
