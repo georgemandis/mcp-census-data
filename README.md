@@ -135,6 +135,10 @@ npm run deploy
 `npm run deploy` builds, checks that the profile data is complete, and runs
 `fly deploy`. It refuses to deploy if the data has not been built.
 
+The machine is suspended after a few idle minutes. Waking it adds about 0.7
+seconds to the next request (measured 2026-11-21), and because it is
+suspended, not stopped, the cache and the open data survive the sleep.
+
 Limits that protect a public address: the Fly proxy allows 40 requests at a
 time; `profile_place` answers "at its request limit" beyond 120 calls a
 minute; requests to the Census API are capped at 120 a minute.
