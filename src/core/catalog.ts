@@ -1,38 +1,48 @@
-import { readFileSync } from "fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { rank } from "./search.js";
 import { DATA_DIR } from "./version.js";
-
-const dataDir = DATA_DIR;
 
 export interface DatasetEntry {
   id: string;
   title: string;
   description: string;
+  /** Years available, ascending. Empty for timeseries datasets. */
   vintages: number[];
-  endpoint: string;
+  /** Timeseries datasets take no vintage; years are chosen with a `time` predicate. */
+  timeseries: boolean;
+  /** True when the title and description were written by hand for this project. */
+  curated: boolean;
 }
 
-const mode = process.env.CENSUS_CATALOG_MODE ?? "curated";
-const catalogFile = mode === "full" ? "full-catalog.json" : "curated-catalog.json";
+const CURATED_BOOST = 10;
+const DEFAULT_LIMIT = 20;
 
-let catalog: DatasetEntry[];
-try {
-  catalog = JSON.parse(readFileSync(join(dataDir, catalogFile), "utf8"));
-} catch (e) {
-  console.error(`[census-mcp] Failed to load catalog ${catalogFile}:`, e);
-  catalog = [];
+let catalog: DatasetEntry[] | undefined;
+
+function entries(): DatasetEntry[] {
+  if (!catalog) {
+    const file = join(DATA_DIR, "catalog.json");
+    catalog = existsSync(file) ? JSON.parse(readFileSync(file, "utf8")) : [];
+  }
+  return catalog!;
 }
 
-const MAX_RESULTS = 20;
+/** Replaces the catalog. For tests. */
+export function loadCatalog(next: DatasetEntry[]): void {
+  catalog = next;
+}
 
-export function searchDatasets(query: string): DatasetEntry[] {
-  const kw = query.toLowerCase();
-  return catalog
-    .filter(
-      (d) =>
-        d.title.toLowerCase().includes(kw) ||
-        d.description.toLowerCase().includes(kw) ||
-        d.id.toLowerCase().includes(kw)
-    )
-    .slice(0, MAX_RESULTS);
+export function searchDatasets(query: string, limit = DEFAULT_LIMIT): DatasetEntry[] {
+  return rank(entries(), query, (d) => ({
+    id: d.id,
+    primary: d.title,
+    secondary: d.description,
+    boost: d.curated ? CURATED_BOOST : 0,
+  })).slice(0, limit);
+}
+
+export function getDataset(id: string): DatasetEntry | undefined {
+  const wanted = id.trim().toLowerCase();
+  return entries().find((d) => d.id === wanted);
 }

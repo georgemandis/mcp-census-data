@@ -2,7 +2,10 @@ import { z } from "zod";
 import { searchDatasets } from "./core/catalog.js";
 import { resolveGeography, listGeographies } from "./core/geography.js";
 import { searchVariables, searchGroups } from "./core/variables.js";
-import { queryDataRaw } from "./core/client.js";
+import { createCensusClient, queryDataRaw } from "./core/client.js";
+
+// Interim: replaced by injected deps when tool registration is rewritten.
+const client = createCensusClient();
 
 // --- discover_datasets ---
 
@@ -71,7 +74,7 @@ export async function searchVariablesTool(args: {
   vintage: number;
   query: string;
 }) {
-  const results = await searchVariables(args.dataset, args.vintage, args.query);
+  const results = await searchVariables(client, args.dataset, args.vintage, args.query);
   const note =
     results.length === 0
       ? "No variables found. Try different keywords or check the dataset/vintage."
@@ -102,7 +105,7 @@ export async function searchGroupsTool(args: {
   vintage: number;
   query: string;
 }) {
-  const results = await searchGroups(args.dataset, args.vintage, args.query);
+  const results = await searchGroups(client, args.dataset, args.vintage, args.query);
   const note =
     results.length === 0
       ? "No table groups found. Not all datasets have groups. Try search_variables instead."

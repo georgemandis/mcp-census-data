@@ -1,4 +1,7 @@
-import { fetchCensusJson } from "./client.js";
+import type { CensusClient } from "./client.js";
+import { CensusError } from "./errors.js";
+import { datasetPath } from "./query.js";
+import { rank } from "./search.js";
 
 export interface VariableMatch {
   name: string;
@@ -7,70 +10,59 @@ export interface VariableMatch {
   group?: string;
 }
 
-const MAX_RESULTS = 50;
-
-export async function searchVariables(
-  dataset: string,
-  vintage: number,
-  query: string
-): Promise<VariableMatch[]> {
-  const data = (await fetchCensusJson(
-    `${vintage}/${dataset}/variables.json`
-  )) as {
-    variables: Record<
-      string,
-      { label?: string; concept?: string; group?: string }
-    >;
-  } | null;
-
-  if (!data?.variables) return [];
-
-  const kw = query.toLowerCase();
-  return Object.entries(data.variables)
-    .filter(
-      ([, v]) =>
-        v.label?.toLowerCase().includes(kw) ||
-        v.concept?.toLowerCase().includes(kw)
-    )
-    .map(([name, v]) => ({
-      name,
-      label: v.label ?? "",
-      concept: v.concept,
-      group: v.group,
-    }))
-    .slice(0, MAX_RESULTS);
-}
-
 export interface GroupMatch {
   name: string;
   description: string;
 }
 
-const MAX_GROUP_RESULTS = 20;
+const MAX_VARIABLES = 50;
+const MAX_GROUPS = 20;
+
+export async function searchVariables(
+  client: CensusClient,
+  dataset: string,
+  vintage: number | undefined,
+  query: string
+): Promise<VariableMatch[]> {
+  const data = (await client.getJson(
+    `${datasetPath(dataset, vintage)}/variables.json`
+  )) as {
+    variables?: Record<string, { label?: string; concept?: string; group?: string }>;
+  } | null;
+  if (!data?.variables) return [];
+
+  const all: VariableMatch[] = Object.entries(data.variables).map(([name, v]) => ({
+    name,
+    label: v.label ?? "",
+    concept: v.concept,
+    group: v.group,
+  }));
+  return rank(all, query, (v) => ({
+    id: v.name,
+    primary: v.label,
+    secondary: v.concept,
+  })).slice(0, MAX_VARIABLES);
+}
 
 export async function searchGroups(
+  client: CensusClient,
   dataset: string,
-  vintage: number,
+  vintage: number | undefined,
   query: string
 ): Promise<GroupMatch[]> {
-  let data: { groups: Array<{ name: string; description: string }> } | null;
+  let data: { groups?: GroupMatch[] } | null;
   try {
-    data = (await fetchCensusJson(
-      `${vintage}/${dataset}/groups.json`
+    data = (await client.getJson(
+      `${datasetPath(dataset, vintage)}/groups.json`
     )) as typeof data;
-  } catch {
-    return [];
+  } catch (e) {
+    // Many datasets simply have no groups; that is an empty answer, not a failure.
+    if (e instanceof CensusError && e.status === 404) return [];
+    throw e;
   }
-
   if (!data?.groups) return [];
 
-  const kw = query.toLowerCase();
-  return data.groups
-    .filter(
-      (g) =>
-        g.name.toLowerCase().includes(kw) ||
-        g.description.toLowerCase().includes(kw)
-    )
+  return rank(data.groups, query, (g) => ({ id: g.name, primary: g.description }))
     .map((g) => ({ name: g.name, description: g.description }))
-    .slice(0, MAX_GROUP_RESULTS);
+    .slice(0, MAX_GROUPS);
 }
