@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type { CensusClient } from "./client.js";
-import { datasetPath } from "./query.js";
+import { getFromDataset } from "./query.js";
 import { DATA_DIR } from "./version.js";
 
 interface StateEntry {
@@ -149,9 +149,9 @@ export async function listGeographies(
   dataset: string,
   vintage?: number
 ): Promise<GeoLevel[]> {
-  const data = (await client.getJson(
-    `${datasetPath(dataset, vintage)}/geography.json`
-  )) as { fips?: GeoLevel[] } | null;
+  const data = (await getFromDataset(client, dataset, vintage, "/geography.json")) as {
+    fips?: GeoLevel[];
+  } | null;
 
   if (!data?.fips) return [];
   return data.fips.map((g) => ({

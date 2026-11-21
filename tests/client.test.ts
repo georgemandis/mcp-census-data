@@ -93,7 +93,7 @@ test("missing-key redirect becomes a missing_key error and is not retried", asyn
 test("invalid-key redirect becomes an invalid_key error", async () => {
   const f = fake([keyRedirect("https://api.census.gov/data/invalid_key.html")]);
   const c = createCensusClient({ apiKey: "BAD", fetch: f, sleep: noSleep });
-  await expect(c.getJson("x")).rejects.toMatchObject({ kind: "invalid_key" });
+  await expect(c.getJson("x", { requiresKey: true })).rejects.toMatchObject({ kind: "invalid_key" });
 });
 
 test("requiresKey without a key fails before any request", async () => {
@@ -210,4 +210,42 @@ test("redact removes the key value and any key parameter", () => {
     "https://x/y?get=A&key=REDACTED&for=us:1 and REDACTED"
   );
   expect(c.redact("?key=otherkey")).toBe("?key=REDACTED");
+});
+
+// --- Final review fixes ---
+
+test("the cache is bounded by bytes, evicting least recently used first", async () => {
+  const big = (n: number) => jsonResponse("x".repeat(n));
+  const f = fake([big(400), big(400), big(400), big(400)]);
+  const c = createCensusClient({ fetch: f, cacheMaxBytes: 1000 });
+  await c.getJson("a");
+  await c.getJson("b");
+  await c.getJson("a"); // a is now the most recently used
+  await c.getJson("c"); // evicts b, not a
+  await c.getJson("a");
+  expect(f.calls.length).toBe(3);
+  await c.getJson("b");
+  expect(f.calls.length).toBe(4);
+});
+
+test("a response larger than the whole cache is returned but not cached", async () => {
+  const f = fake([jsonResponse("x".repeat(500)), jsonResponse("x".repeat(500))]);
+  const c = createCensusClient({ fetch: f, cacheMaxBytes: 100 });
+  await c.getJson("a");
+  await c.getJson("a");
+  expect(f.calls.length).toBe(2);
+});
+
+test("a rejected key does not take down requests that need no key", async () => {
+  const f = fake([keyRedirect("https://api.census.gov/data/invalid_key.html"), jsonResponse({ variables: {} })]);
+  const c = createCensusClient({ apiKey: "BAD", fetch: f, sleep: noSleep });
+  expect(await c.getJson("2024/acs/acs5/variables.json")).toEqual({ variables: {} });
+  expect(f.calls[1].url).toBe("https://api.census.gov/data/2024/acs/acs5/variables.json");
+});
+
+test("a rejected key still fails requests that do need one", async () => {
+  const f = fake([keyRedirect("https://api.census.gov/data/invalid_key.html")]);
+  const c = createCensusClient({ apiKey: "BAD", fetch: f, sleep: noSleep });
+  await expect(c.getJson("x", { requiresKey: true })).rejects.toMatchObject({ kind: "invalid_key" });
+  expect(f.calls.length).toBe(1);
 });

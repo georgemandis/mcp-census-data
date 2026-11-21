@@ -21,6 +21,8 @@ export interface ClientOptions {
   /** Upstream attempts allowed per rolling minute. Protects the shared key. */
   maxRequestsPerMinute?: number;
   cacheMaxEntries?: number;
+  /** Ceiling on cached response text. One ACS variable list is several MB. */
+  cacheMaxBytes?: number;
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
 }
@@ -52,11 +54,14 @@ export function createCensusClient(options: ClientOptions = {}): CensusClient {
     envInt("CENSUS_MAX_REQUESTS_PER_MINUTE") ??
     120;
   const cacheMax = options.cacheMaxEntries ?? 200;
+  const cacheMaxBytes = options.cacheMaxBytes ?? 64 * 1024 * 1024;
   const now = options.now ?? Date.now;
   const sleep =
     options.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
 
-  const cache = new Map<string, { value: unknown; expires: number }>();
+  // Insertion order doubles as recency: a hit is re-inserted at the end.
+  const cache = new Map<string, { value: unknown; expires: number; bytes: number }>();
+  let cachedBytes = 0;
   const inFlight = new Map<string, Promise<unknown>>();
   let attempts: number[] = [];
 
@@ -75,8 +80,31 @@ export function createCensusClient(options: ClientOptions = {}): CensusClient {
     attempts.push(t);
   }
 
+  function evict(path: string): void {
+    const entry = cache.get(path);
+    if (!entry) return;
+    cachedBytes -= entry.bytes;
+    cache.delete(path);
+  }
+
+  function remember(path: string, value: unknown, bytes: number, ttlMs: number): void {
+    evict(path);
+    if (bytes > cacheMaxBytes) return;
+    cache.set(path, { value, expires: now() + ttlMs, bytes });
+    cachedBytes += bytes;
+    while (cache.size > cacheMax || cachedBytes > cacheMaxBytes) {
+      evict(cache.keys().next().value as string);
+    }
+  }
+
+  interface Fetched {
+    value: unknown;
+    /** Length of the response text; a stand-in for memory held. */
+    bytes: number;
+  }
+
   /** One upstream attempt. Throws CensusError; `retryable` marks transient failures. */
-  async function attempt(url: string): Promise<unknown> {
+  async function attempt(url: string): Promise<Fetched> {
     spendBudget();
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -109,7 +137,7 @@ export function createCensusClient(options: ClientOptions = {}): CensusClient {
           : new CensusError("missing_key", MISSING_KEY_MESSAGE);
       }
     }
-    if (res.status === 204) return null;
+    if (res.status === 204) return { value: null, bytes: 0 };
     if (!res.ok) {
       const err = new CensusError(
         "http",
@@ -120,7 +148,7 @@ export function createCensusClient(options: ClientOptions = {}): CensusClient {
       throw Object.assign(err, { retryable });
     }
     try {
-      return JSON.parse(body);
+      return { value: JSON.parse(body), bytes: body.length };
     } catch {
       throw new CensusError(
         "bad_response",
@@ -131,7 +159,7 @@ export function createCensusClient(options: ClientOptions = {}): CensusClient {
     }
   }
 
-  async function fetchWithRetry(url: string): Promise<unknown> {
+  async function fetchWithRetry(url: string): Promise<Fetched> {
     for (let i = 0; ; i++) {
       try {
         return await attempt(url);
@@ -150,21 +178,32 @@ export function createCensusClient(options: ClientOptions = {}): CensusClient {
       throw new CensusError("missing_key", MISSING_KEY_MESSAGE);
     }
     const hit = cache.get(path);
-    if (hit && hit.expires > now()) return hit.value;
-    if (hit) cache.delete(path);
+    if (hit && hit.expires > now()) {
+      cache.delete(path);
+      cache.set(path, hit);
+      return hit.value;
+    }
+    evict(path);
 
     const pending = inFlight.get(path);
     if (pending) return pending;
 
-    let url = `${BASE}/${path}`;
-    if (apiKey) url += `${path.includes("?") ? "&" : "?"}key=${encodeURIComponent(apiKey)}`;
+    const bare = `${BASE}/${path}`;
+    const keyed = apiKey
+      ? `${bare}${path.includes("?") ? "&" : "?"}key=${encodeURIComponent(apiKey)}`
+      : bare;
 
-    const request = fetchWithRetry(url)
-      .then((value) => {
-        cache.set(path, { value, expires: now() + (opts.ttlMs ?? DAY_MS) });
-        while (cache.size > cacheMax) {
-          cache.delete(cache.keys().next().value as string);
-        }
+    const request = fetchWithRetry(keyed)
+      .catch((e) => {
+        // Metadata needs no key. A revoked or mistyped key should cost the
+        // data tools only, so ask again without it.
+        const keyRejected =
+          e instanceof CensusError && (e.kind === "invalid_key" || e.kind === "missing_key");
+        if (keyRejected && apiKey && !opts.requiresKey) return fetchWithRetry(bare);
+        throw e;
+      })
+      .then(({ value, bytes }) => {
+        remember(path, value, bytes, opts.ttlMs ?? DAY_MS);
         return value;
       })
       .finally(() => inFlight.delete(path));

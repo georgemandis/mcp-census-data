@@ -1,6 +1,5 @@
 import type { CensusClient } from "./client.js";
-import { CensusError } from "./errors.js";
-import { datasetPath } from "./query.js";
+import { getFromDataset } from "./query.js";
 import { rank } from "./search.js";
 
 export interface VariableMatch {
@@ -24,9 +23,7 @@ export async function searchVariables(
   vintage: number | undefined,
   query: string
 ): Promise<VariableMatch[]> {
-  const data = (await client.getJson(
-    `${datasetPath(dataset, vintage)}/variables.json`
-  )) as {
+  const data = (await getFromDataset(client, dataset, vintage, "/variables.json")) as {
     variables?: Record<string, { label?: string; concept?: string; group?: string }>;
   } | null;
   if (!data?.variables) return [];
@@ -50,16 +47,10 @@ export async function searchGroups(
   vintage: number | undefined,
   query: string
 ): Promise<GroupMatch[]> {
-  let data: { groups?: GroupMatch[] } | null;
-  try {
-    data = (await client.getJson(
-      `${datasetPath(dataset, vintage)}/groups.json`
-    )) as typeof data;
-  } catch (e) {
-    // Many datasets simply have no groups; that is an empty answer, not a failure.
-    if (e instanceof CensusError && e.status === 404) return [];
-    throw e;
-  }
+  // A dataset without groups answers with an empty list, not an error.
+  const data = (await getFromDataset(client, dataset, vintage, "/groups.json")) as {
+    groups?: GroupMatch[];
+  } | null;
   if (!data?.groups) return [];
 
   return rank(data.groups, query, (g) => ({ id: g.name, primary: g.description }))

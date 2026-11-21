@@ -63,3 +63,13 @@ test("timeseries datasets list geographies without a vintage", async () => {
   await listGeographies(client, "timeseries/poverty/saipe");
   expect(paths).toEqual(["timeseries/poverty/saipe/geography.json"]);
 });
+
+test("a 404 from the geography file says the dataset was not found", async () => {
+  const { createCensusClient } = await import("../src/core/client.js");
+  const { fake } = await import("./helpers.js");
+  const c = createCensusClient({ fetch: fake([new Response("<html>404</html>", { status: 404 })]) });
+  await expect(listGeographies(c, "acs/acs5", 2031)).rejects.toMatchObject({
+    kind: "invalid_request",
+    message: expect.stringContaining("Dataset acs/acs5 for 2031 was not found"),
+  });
+});

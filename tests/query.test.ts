@@ -138,3 +138,56 @@ test("spaces inside level names and between clauses survive", async () => {
     "2024/acs/acs5?get=NAME&for=block+group%3A*&in=state%3A53+county%3A033"
   );
 });
+
+// --- Final review fixes ---
+
+test("lower-case variable names that are not table codes keep their case", async () => {
+  const f = recordingClient();
+  await queryData(f.client, {
+    dataset: "timeseries/eits/advm3",
+    get: ["cell_value", "data_type_code", "time_slot_id", "b19013_001e", "name", "geo_id"],
+    for: "us:*",
+  });
+  expect(f.paths[0]).toBe(
+    "timeseries/eits/advm3?get=cell_value%2Cdata_type_code%2Ctime_slot_id%2CB19013_001E%2CNAME%2CGEO_ID&for=us%3A*"
+  );
+});
+
+test("sentinels written as decimals also become null", async () => {
+  const r = await queryData(
+    clientReturning([["NAME", "A", "B"], ["Tract 1", "-666666666.0", "-999999999.00"]]),
+    { dataset: "acs/acs5", vintage: 2024, get: ["NAME", "A", "B"], for: "tract:*" }
+  );
+  expect(r.rows[0]).toEqual({ NAME: "Tract 1", A: null, B: null });
+  expect(r.nullsReplaced).toBe(2);
+});
+
+test.each(["get", "for", "in", "key", "KEY"])("predicate '%s' is refused", async (name) => {
+  const f = recordingClient();
+  await expect(
+    queryData(f.client, {
+      dataset: "acs/acs5", vintage: 2024, get: ["NAME"], for: "us:1", predicates: { [name]: "x" },
+    })
+  ).rejects.toMatchObject({
+    kind: "invalid_request",
+    message: `'${name}' cannot be used as a predicate; it has its own argument.`,
+  });
+  expect(f.paths).toEqual([]);
+});
+
+test.each(["acs/acs5/../acs1", "../../data/2023/acs/acs5?x=", "acs//acs5", "acs/acs5#x", ""])(
+  "dataset id %j is refused",
+  (id) => {
+    expect(() => datasetPath(id, 2024)).toThrowError(
+      expect.objectContaining({ kind: "invalid_request" })
+    );
+  }
+);
+
+test("a 404 on a data query says the dataset or year was not found", async () => {
+  const c = createCensusClient({ apiKey: "K", fetch: fake([new Response("<!doctype html><html>Tomcat 404</html>", { status: 404 })]) });
+  const err = await queryData(c, { dataset: "acs/acs5", vintage: 2031, get: ["NAME"], for: "us:1" }).catch((e) => e);
+  expect(err).toMatchObject({ kind: "invalid_request" });
+  expect(err.message).toContain("Dataset acs/acs5 for 2031 was not found");
+  expect(err.message).not.toContain("Tomcat");
+});

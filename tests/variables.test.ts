@@ -1,4 +1,5 @@
 import { createCensusClient } from "../src/core/client.js";
+import { loadCatalog } from "../src/core/catalog.js";
 import { searchGroups, searchVariables } from "../src/core/variables.js";
 import { fake, recordingClient } from "./helpers.js";
 
@@ -51,9 +52,29 @@ test("groups are searched by name and description", async () => {
   expect(paths).toEqual(["2024/acs/acs5/groups.json"]);
 });
 
-test("a dataset with no groups endpoint (404) yields an empty list", async () => {
-  const c = createCensusClient({ fetch: fake([new Response("not found", { status: 404 })]) });
-  expect(await searchGroups(c, "cbp", 2022, "anything")).toEqual([]);
+test("a dataset with no groups yields an empty list", async () => {
+  const { client } = recordingClient({ groups: [] });
+  expect(await searchGroups(client, "timeseries/eits/resconst", undefined, "anything")).toEqual([]);
+});
+
+test("a 404 means the dataset or year does not exist, and says so", async () => {
+  loadCatalog([{ id: "acs/acs5", title: "ACS", description: "", vintages: [2022, 2023, 2024], timeseries: false, curated: true }]);
+  for (const search of [searchGroups, searchVariables]) {
+    const c = createCensusClient({ fetch: fake([new Response("<!doctype html>Tomcat", { status: 404 })]) });
+    const err = await search(c, "acs/acs5", 2031, "age").catch((e) => e);
+    expect(err).toMatchObject({ kind: "invalid_request" });
+    expect(err.message).toBe(
+      "Dataset acs/acs5 for 2031 was not found. Available years: 2022, 2023, 2024."
+    );
+  }
+});
+
+test("a 404 for a dataset the catalog does not know points to discover_datasets", async () => {
+  loadCatalog([]);
+  const c = createCensusClient({ fetch: fake([new Response("nope", { status: 404 })]) });
+  await expect(searchVariables(c, "acs/nope", 2024, "age")).rejects.toMatchObject({
+    message: "Dataset acs/nope for 2024 was not found. Use discover_datasets to find valid dataset IDs and years.",
+  });
 });
 
 test("other group failures propagate", async () => {
