@@ -7,6 +7,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { DuckDBInstance, LIST, VARCHAR, listValue, type DuckDBConnection } from "@duckdb/node-api";
 import { plain } from "../core/geography.js";
+import { DATA_DIR } from "../core/version.js";
 import { tablesUsed } from "./definition.js";
 
 export interface Manifest {
@@ -95,9 +96,12 @@ async function readManifest(location: string): Promise<Manifest> {
   }
 }
 
-export async function openStore(
-  location: string = process.env.CENSUS_DATA_DIR ?? "data/acs",
-): Promise<Store> {
+/** Where the data is read from: CENSUS_DATA_DIR, or data/acs inside the project. */
+export function defaultLocation(env: Record<string, string | undefined> = process.env): string {
+  return env.CENSUS_DATA_DIR || join(DATA_DIR, "acs");
+}
+
+export async function openStore(location: string = defaultLocation()): Promise<Store> {
   const base = location.replace(/\/+$/, "");
   const manifest = await readManifest(base);
   const file = (name: string) => `${base}/${name}`.replace(/'/g, "''");

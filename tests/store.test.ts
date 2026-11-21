@@ -114,3 +114,18 @@ describe("places", () => {
     expect(await store.places("Nowhereville")).toEqual([]);
   });
 });
+
+describe("defaultLocation", () => {
+  it("is data/acs inside the project, wherever the server was started from", async () => {
+    const { defaultLocation } = await import("../src/profile/store.js");
+    const { isAbsolute } = await import("node:path");
+    const loc = defaultLocation({});
+    expect(isAbsolute(loc)).toBe(true);
+    expect(loc.endsWith("/data/acs")).toBe(true);
+  });
+
+  it("is CENSUS_DATA_DIR when set", async () => {
+    const { defaultLocation } = await import("../src/profile/store.js");
+    expect(defaultLocation({ CENSUS_DATA_DIR: "https://example.org/acs" })).toBe("https://example.org/acs");
+  });
+});
