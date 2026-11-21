@@ -174,32 +174,3 @@ export function createCensusClient(options: ClientOptions = {}): CensusClient {
 
   return { hasKey: apiKey !== "", getJson, redact };
 }
-
-// --- Deprecated wrappers, kept until the tools move to the new modules. ---
-
-let defaultClient: CensusClient | undefined;
-function legacyClient(): CensusClient {
-  return (defaultClient ??= createCensusClient());
-}
-
-/** @deprecated Use a CensusClient. */
-export function fetchCensusJson(path: string): Promise<unknown> {
-  return legacyClient().getJson(path);
-}
-
-/** @deprecated Use queryData from ./query.js. */
-export async function queryDataRaw(
-  dataset: string,
-  vintage: number,
-  params: { get: string[]; for: string; in?: string; predicates?: Record<string, string> }
-): Promise<Array<Record<string, string>>> {
-  const query = new URLSearchParams({ get: params.get.join(","), for: params.for });
-  if (params.in) query.set("in", params.in);
-  for (const [k, v] of Object.entries(params.predicates ?? {})) query.set(k, v);
-  const data = (await legacyClient().getJson(`${vintage}/${dataset}?${query}`, {
-    requiresKey: true,
-  })) as string[][] | null;
-  if (!data) return [];
-  const [headers, ...rows] = data;
-  return rows.map((row) => Object.fromEntries(headers.map((h, i) => [h, row[i]])));
-}
