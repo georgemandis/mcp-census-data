@@ -16,7 +16,9 @@
     "start:http": "node dist/http.js",
     "build:catalog": "node dist/scripts/build-catalog.js",
     "build:geo": "node dist/scripts/build-geo.js",
-    "dev": "tsc --watch"
+    "dev": "tsc --watch",
+    "check:profile": "node dist/scripts/check-profile.js",
+    "build:acs": "node dist/scripts/build-acs.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.0",
