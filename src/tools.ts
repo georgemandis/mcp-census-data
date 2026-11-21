@@ -6,12 +6,27 @@ import { CensusError } from "./core/errors.js";
 import { listGeographies, resolveGeography } from "./core/geography.js";
 import { queryData } from "./core/query.js";
 import { searchGroups, searchVariables } from "./core/variables.js";
+import { LocateError, locate } from "./profile/locate.js";
+import {
+  DEFAULT_RADIUS_MILES,
+  MAX_RADIUS_MILES,
+  ProfileInputError,
+  SECTION_IDS,
+  buildProfile,
+} from "./profile/profile.js";
+import { defaultProfileRuntime, type ProfileRuntime } from "./profile/runtime.js";
+import { DataMissingError } from "./profile/store.js";
 
 export interface ToolDeps {
   client: CensusClient;
   /** Called once per tool call. Carries no arguments, by design. */
   log?: (entry: { tool: string; ms: number; ok: boolean }) => void;
+  /** Data store and geocoder for profile_place. Defaults to the process-wide one. */
+  profile?: ProfileRuntime;
 }
+
+/** A failure whose message is safe and useful to show as it is. */
+class ToolError extends Error {}
 
 interface ToolResult {
   [key: string]: unknown;
@@ -54,7 +69,7 @@ export function registerTools(server: McpServer, deps: ToolDeps): void {
         result = await handler(args);
       } catch (e) {
         const message =
-          e instanceof CensusError
+          e instanceof CensusError || e instanceof ToolError
             ? e.message
             : `Unexpected error: ${e instanceof Error ? e.message : String(e)}`;
         result = { isError: true, content: [{ type: "text", text: client.redact(message) }] };
@@ -280,6 +295,73 @@ export function registerTools(server: McpServer, deps: ToolDeps): void {
           note += ` ${r.nullsReplaced} value(s) were Census "not available" codes and are shown as null.`;
         }
         return ok(note, r.rows);
+      }
+    )
+  );
+
+  const profileRuntime = deps.profile ?? defaultProfileRuntime();
+
+  server.registerTool(
+    "profile_place",
+    {
+      title: "Profile a place",
+      description:
+        "Who lives near a place. Give a street address, a 5-digit ZIP, a place like 'Seattle, WA', or coordinates like '47.61, -122.33'. Returns a profile of the people living within radius_miles (default 1) of that point: age, income and poverty, work, race and origins, households and children, older adults, school, benefit programs (SNAP, Medicaid, SSI and others), housing, and a 'gaps' list comparing need with benefit receipt. Each figure has a count, a share, a margin of error and a reliability label, and is set beside the county, state and US, with a flag when the area differs from its county by more than chance. Use this first for any 'who lives here' or 'what is this neighbourhood like' question; do not assemble it from query_data. Figures are American Community Survey 5-year estimates. Each section lists its source table IDs, which query_data can use for more detail. A ZIP or place name is treated as its centre point plus the radius, not its whole area.",
+      inputSchema: {
+        location: z
+          .string()
+          .trim()
+          .min(1)
+          .max(200)
+          .describe(
+            "A street address ('400 Broad St, Seattle, WA'), a 5-digit ZIP, a place with its state ('Austin, TX'), or 'latitude, longitude'."
+          ),
+        radius_miles: z
+          .number()
+          .min(0)
+          .max(MAX_RADIUS_MILES)
+          .optional()
+          .describe(
+            `Distance around the point to include, in miles. Default ${DEFAULT_RADIUS_MILES}, max ${MAX_RADIUS_MILES}. Use 0 for the single census tract at the point.`
+          ),
+        sections: z
+          .array(z.enum(SECTION_IDS as [string, ...string[]]))
+          .optional()
+          .describe(`Sections to return. Default is all: ${SECTION_IDS.join(", ")}.`),
+      },
+      annotations: live,
+    },
+    guarded(
+      "profile_place",
+      async (args: { location: string; radius_miles?: number; sections?: string[] }) => {
+        try {
+          const store = await profileRuntime.store();
+          const located = await locate(args.location, { store, geocoder: profileRuntime.geocoder });
+          const profile = await buildProfile(located, store, {
+            radiusMiles: args.radius_miles,
+            sections: args.sections,
+          });
+          const { area } = profile;
+          const where =
+            area.radius_miles > 0
+              ? `the area within ${area.covered_miles} mile(s) of ${located.label}`
+              : `the census tract at ${located.label}`;
+          const people =
+            area.population === null ? "no figures" : `${area.population.toLocaleString("en-US")} people`;
+          return ok(
+            `Profile of ${where}: ${area.tracts} census tract${area.tracts === 1 ? "" : "s"}, ${people}. Shares are fractions (0.25 = 25%). Read the notes before drawing conclusions.`,
+            profile
+          );
+        } catch (e) {
+          // Fixed or input-free messages only: the location may be a home address.
+          if (e instanceof DataMissingError) {
+            throw new ToolError(
+              "The profile data has not been built on this server. Run: npm run build && npm run build:acs"
+            );
+          }
+          if (e instanceof LocateError || e instanceof ProfileInputError) throw new ToolError(e.message);
+          throw new ToolError("The profile could not be built because of an internal error.");
+        }
       }
     )
   );

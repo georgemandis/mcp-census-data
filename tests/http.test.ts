@@ -48,9 +48,9 @@ test("a malformed body is a 400, not a crash", async () => {
   expect((await fetch(`${base}/health`)).status).toBe(200);
 });
 
-test("an MCP client lists six tools and calls one", async () => {
+test("an MCP client lists seven tools and calls one", async () => {
   const c = await mcpClient();
-  expect((await c.listTools()).tools).toHaveLength(6);
+  expect((await c.listTools()).tools).toHaveLength(7);
   const r = await c.callTool({ name: "resolve_geography", arguments: { name: "TX" } });
   expect(r.isError).toBeFalsy();
   expect(JSON.parse((r.content as Array<{ text: string }>)[1].text)[0].fips).toBe("48");
@@ -61,8 +61,37 @@ test("an MCP client lists six tools and calls one", async () => {
 test("a second client works: no session state is kept", async () => {
   const a = await mcpClient();
   const b = await mcpClient();
-  expect((await b.listTools()).tools).toHaveLength(6);
-  expect((await a.listTools()).tools).toHaveLength(6);
+  expect((await b.listTools()).tools).toHaveLength(7);
+  expect((await a.listTools()).tools).toHaveLength(7);
   await a.close();
   await b.close();
+});
+
+test("profile_place answers over HTTP, sharing one open store across requests", async () => {
+  const { buildFixture } = await import("./profile-fixture.js");
+  const { openStore } = await import("../src/profile/store.js");
+  const { createProfileRuntime } = await import("../src/profile/runtime.js");
+  const fixture = await buildFixture();
+  let opens = 0;
+  const profile = createProfileRuntime({
+    openStore: () => {
+      opens++;
+      return openStore(fixture.dir);
+    },
+  });
+  const server = await startHttp({ port: 0, deps: { client: clientReturning({}), profile } });
+  try {
+    for (const location of ["98101", "Seattle, WA"]) {
+      const c = new Client({ name: "t", version: "0" });
+      await c.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${server.port}/mcp`)));
+      const r = await c.callTool({ name: "profile_place", arguments: { location } });
+      expect(r.isError).toBeFalsy();
+      expect(JSON.parse((r.content as Array<{ text: string }>)[1].text).sections).toHaveLength(9);
+      await c.close();
+    }
+    expect(opens).toBe(1);
+  } finally {
+    await server.close();
+    await fixture.cleanup();
+  }
 });

@@ -304,9 +304,9 @@ export async function buildProfile(
       tables: tablesOf(s.lines),
       lines: ranked(s.lines, s.top),
     })),
+    ...(withGaps ? { gaps: GAPS.map(outLine) } : {}),
     notes,
     data: { source: "ACS 5-year", period: store.manifest.period, built: store.manifest.built },
   };
-  if (withGaps) profile.gaps = GAPS.map(outLine);
   return profile;
 }
