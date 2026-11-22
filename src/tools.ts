@@ -440,8 +440,20 @@ export function registerTools(server: McpServer, deps: ToolDeps): void {
         );
         const { area } = answer;
         const what = answer.types ? `${answer.types.length} type(s) of place` : "an overview of place types";
+        const perText = (p: { unit: number; label: string }) => `${p.unit.toLocaleString("en-US")} ${p.label}`;
+        // Overture lines are approximate; USDA's SNAP lines are exact and may be rated per another group.
+        const overture = !answer.types || answer.types.some((t) => "matched" in t);
+        const snap = answer.data.snap;
+        const rates = !snap
+          ? `Rates are per ${perText(answer.per)}. Counts are approximate.`
+          : [
+              overture ? `Overture rates are per ${perText(answer.per)}; Overture counts are approximate.` : "",
+              `USDA SNAP lines are exact counts as of ${snap.as_of}, rated per ${perText(answer.per.usda ?? answer.per)}.`,
+            ]
+              .filter(Boolean)
+              .join(" ");
         return ok(
-          `${what} in ${whereText(located, area)} (${area.tracts} census tract${area.tracts === 1 ? "" : "s"}). Rates are per ${answer.per.unit.toLocaleString("en-US")} ${answer.per.label}. Counts are approximate; read the notes before drawing conclusions.`
+          `${what} in ${whereText(located, area)} (${area.tracts} census tract${area.tracts === 1 ? "" : "s"}). ${rates} Read the notes before drawing conclusions.`
             .replace(/^./, (c) => c.toUpperCase()),
           answer
         );

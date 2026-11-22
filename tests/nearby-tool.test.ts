@@ -126,6 +126,20 @@ describe("nearby_places", () => {
     expect(answer.types[1].official.source).toBe("USDA SNAP retailers");
   });
 
+  it("says in the summary that USDA lines are exact and what they are rated per", async () => {
+    const { call } = await connect();
+    const [snapOnly] = texts(await call({ location: "98101", types: ["SNAP stores"] }));
+    expect(snapOnly).toMatch(/USDA SNAP lines are exact counts as of 2026-11-05, rated per 1,000 households on SNAP\./);
+    expect(snapOnly).not.toMatch(/approximate/i);
+    expect(snapOnly).not.toMatch(/per 10,000 residents/);
+    const [mixed] = texts(await call({ location: "98101", types: ["SNAP stores", "libraries"] }));
+    expect(mixed).toMatch(/Overture rates are per 10,000 residents/);
+    expect(mixed).toMatch(/Overture counts are approximate/);
+    expect(mixed).toMatch(/USDA SNAP lines are exact counts/);
+    const [plain] = texts(await call({ location: "98101", types: ["libraries"] }));
+    expect(plain).toMatch(/Rates are per 10,000 residents\. Counts are approximate/);
+  });
+
   it("still answers when the SNAP data is missing, saying so", async () => {
     const { call } = await connect({ openSnap: async () => { throw new SnapMissingError("/nowhere"); } });
     const r = await call({ location: "98101", types: ["SNAP stores", "libraries"] });

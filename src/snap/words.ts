@@ -11,9 +11,14 @@ const wordsOf = (text: string) =>
     .split(/[^a-z0-9]+/)
     .filter(Boolean);
 
-/** True when the words ask about SNAP: "snap", "ebt" or "food stamp(s)". */
+// Words that make a SNAP word name something other than a retailer: the
+// benefits office, an EBT cash machine, a gym chain, a vegetable.
+const NOT_RETAILERS = new Set(["office", "offices", "atm", "atms", "fitness", "gym", "gyms", "pea", "peas"]);
+
+/** True when the words ask about SNAP retailers: "snap", "ebt" or "food stamp(s)". */
 export function isSnapRequest(text: string): boolean {
   const ws = wordsOf(text);
+  if (ws.some((w) => NOT_RETAILERS.has(w))) return false;
   return ws.some(
     (w, i) => w === "snap" || w === "ebt" || (w === "food" && (ws[i + 1] === "stamp" || ws[i + 1] === "stamps")),
   );

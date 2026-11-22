@@ -7,7 +7,10 @@ describe("isSnapRequest", () => {
     (words) => expect(isSnapRequest(words)).toBe(true),
   );
 
-  it.each(["snapper", "snapshot", "grocery stores", "stamps", "food", "stamp collectors", "ebts", "food banks"])(
+  it.each([
+    "snapper", "snapshot", "grocery stores", "stamps", "food", "stamp collectors", "ebts", "food banks",
+    "snap fitness", "food stamp office", "SNAP offices", "EBT ATM", "snap peas", "snap gym",
+  ])(
     "%j does not",
     (words) => expect(isSnapRequest(words)).toBe(false),
   );
