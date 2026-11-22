@@ -22,6 +22,7 @@ export const PATHS = {
   mystery: "attractions > mystery_spot",
   foodBank: "community_and_government > social_or_community_service > food_bank",
   fireStation: "community_and_government > fire_station",
+  cafe: "eat_and_drink > cafe",
 } as const;
 
 interface FixturePlace {
@@ -36,7 +37,7 @@ interface FixturePlace {
 const p = (name: string | null, path: string, basic: string | null, tract: string, miles: number, address: string | null = `${Math.round(miles * 1000)} Main St`): FixturePlace =>
   ({ name, path, basic, tract, miles, address });
 
-/** 17 places: 9 in tract A, 5 in B, 2 in C, 1 in D. */
+/** 23 places: 15 in tract A (six of them cafes), 5 in B, 2 in C, 1 in D. */
 export const PLACES: FixturePlace[] = [
   p("Central Library", PATHS.library, "library", TRACT.A, 0.1),
   p("Corner Grocery", PATHS.grocery, "food_and_beverage_store", TRACT.A, 0.2),
@@ -47,6 +48,7 @@ export const PLACES: FixturePlace[] = [
   p("Pencil Depot", PATHS.supply, "specialty_store", TRACT.A, 0.35),
   p(null, PATHS.park, "park", TRACT.A, 0.4, null),
   p("The Vortex", PATHS.mystery, null, TRACT.A, 0.45),
+  ...[1, 2, 3, 4, 5, 6].map((i) => p(`Cafe ${i}`, PATHS.cafe, "cafe", TRACT.A, 0.01 * i)),
   p("North Library", PATHS.library, "library", TRACT.B, 0.7),
   p("North Grocery", PATHS.grocery, "food_and_beverage_store", TRACT.B, 0.75),
   p("Diner Four", PATHS.restaurant, "restaurant", TRACT.B, 0.8),
@@ -69,6 +71,7 @@ export const COUNTS: [path: string, basic: string | null, county: number, state:
   [PATHS.mystery, null, 1, 10, 100],
   [PATHS.foodBank, "social_or_community_service", 40, 100, 1000],
   [PATHS.fireStation, "fire_station", 3, 30, 300],
+  [PATHS.cafe, "cafe", 20, 200, 2000],
 ];
 
 const q = (v: string | null) => (v === null ? "NULL" : `'${v.replace(/'/g, "''")}'`);

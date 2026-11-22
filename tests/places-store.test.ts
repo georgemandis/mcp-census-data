@@ -18,7 +18,7 @@ const AB = [TRACT.A, TRACT.B];
 
 describe("openPlaces", () => {
   it("reads the manifest and the type list", async () => {
-    expect(places.manifest).toMatchObject({ release: "2026-11-18.0", places: 17 });
+    expect(places.manifest).toMatchObject({ release: "2026-11-18.0", places: 23 });
     const types = await places.types();
     expect(types.find((t) => t.path === PATHS.grocery)).toEqual({ path: PATHS.grocery, name: "grocery_store", n: 5000 });
     expect(types.find((t) => t.path === "education")!.n).toBe(5000);
@@ -102,7 +102,7 @@ describe("broad types", () => {
   it("counts by broad type here, leaving out places without one", async () => {
     const here = await places.broadHere(AB);
     expect(Object.fromEntries(here)).toEqual({
-      restaurant: 5, food_and_beverage_store: 3, library: 2, specialty_store: 1, park: 1, school: 1,
+      restaurant: 5, food_and_beverage_store: 3, library: 2, specialty_store: 1, park: 1, school: 1, cafe: 6,
     });
     expect((await places.broadHere([])).size).toBe(0);
   });
@@ -112,6 +112,6 @@ describe("broad types", () => {
     expect(county.get("food_and_beverage_store")).toBe(50);
     expect(county.get("restaurant")).toBe(400);
     expect(county.has("null")).toBe(false);
-    expect(county.size).toBe(8);
+    expect(county.size).toBe(9);
   });
 });
