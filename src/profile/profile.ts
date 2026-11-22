@@ -16,6 +16,7 @@ import {
   type Cell,
   type Line,
 } from "./definition.js";
+import { DEFAULT_RADIUS_MILES, MAX_RADIUS_MILES, MAX_TRACTS, selectArea } from "./area.js";
 import type { Located } from "./locate.js";
 import {
   differs,
@@ -30,9 +31,7 @@ import { geoId, type Row, type Store } from "./store.js";
 
 export const SECTION_IDS: string[] = [...SECTIONS.map((s) => s.id), "gaps"];
 
-export const DEFAULT_RADIUS_MILES = 1;
-export const MAX_RADIUS_MILES = 10;
-export const MAX_TRACTS = 500;
+export { DEFAULT_RADIUS_MILES, MAX_RADIUS_MILES, MAX_TRACTS };
 
 export interface ProfileOptions {
   radiusMiles?: number;
@@ -163,14 +162,9 @@ export async function buildProfile(
   const withGaps = wanted.includes("gaps");
 
   // The area: tract centres within the radius, plus the anchor.
-  const near =
-    radius > 0
-      ? await store.tractsNear(located.lat, located.lon, radius, maxTracts)
-      : { tracts: [], inRange: 0 };
-  const truncated = near.inRange > near.tracts.length;
-  const tractCodes = near.tracts.map((t) => t.geoid);
-  if (!tractCodes.includes(located.anchor)) tractCodes.push(located.anchor);
-  const coveredMiles = truncated ? near.tracts[near.tracts.length - 1].miles : radius;
+  const area = await selectArea(located, store, radius, maxTracts);
+  const { truncated, coveredMiles } = area;
+  const tractCodes = area.tracts;
 
   const anchorGeo = geoId("tract", located.anchor);
   const countyGeo = geoId("county", located.anchor.slice(0, 5));
@@ -293,7 +287,7 @@ export async function buildProfile(
   }
   if (truncated) {
     notes.push(
-      `${near.inRange} tracts are within ${radius} miles. The nearest ${near.tracts.length} were used, which reach ${round(coveredMiles, 1)} miles.`,
+      `${area.inRange} tracts are within ${radius} miles. The nearest ${maxTracts} were used, which reach ${round(coveredMiles, 1)} miles.`,
     );
   }
   if (withoutData > 0 && areaGeos.length > 0) {
@@ -319,7 +313,7 @@ export async function buildProfile(
       tracts: areaGeos.length,
       population: round(areaPopulation.est, 0),
       single_tract: single,
-      tracts_in_range: near.inRange,
+      tracts_in_range: area.inRange,
       covered_miles: round(coveredMiles, 2)!,
       tracts_without_data: withoutData,
     },
