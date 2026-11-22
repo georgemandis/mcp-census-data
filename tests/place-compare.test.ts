@@ -87,7 +87,7 @@ describe("versus", () => {
   });
 
   it("gives no ratio against a county figure that is itself tiny", () => {
-    const small = "more here than the county rate would give, but the county has too few to say how much";
+    const small = "more here than the county rate would give, but the numbers are too small to say how much";
     expect(v(6, 0.4)).toBe(small);
     expect(v(7, 0.8)).toBe(small);
     expect(v(6, 2)).toBe(small);

@@ -53,9 +53,9 @@ export function expected(
   return (countThere / groupThere) * groupHere;
 }
 
-/** Wording used when the area has more than the county's rate gives but the county figure is tiny. */
+/** Wording used when the area has more than the county rate gives but too few would be expected here to build a ratio on. */
 export const MORE_BUT_SMALL =
-  "more here than the county rate would give, but the county has too few to say how much";
+  "more here than the county rate would give, but the numbers are too small to say how much";
 export const NOT_CLEARLY_DIFFERENT = "not clearly different from the county";
 
 /**

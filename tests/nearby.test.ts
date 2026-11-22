@@ -98,7 +98,7 @@ describe("nearbyPlaces: a named type", () => {
     // 6 cafes where 2 would be expected: more, but 2 is too few to build a ratio on.
     const cafes = entry(await ask(["cafes"], { radiusMiles: 0 }), "cafes");
     expect(cafes.expected_at_county_rate).toBe(2);
-    expect(cafes.vs_county).toBe("more here than the county rate would give, but the county has too few to say how much");
+    expect(cafes.vs_county).toBe("more here than the county rate would give, but the numbers are too small to say how much");
   });
 
   it("names a clear absence", async () => {
