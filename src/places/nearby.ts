@@ -14,8 +14,10 @@ import type { Located } from "../profile/locate.js";
 import { reliability, sumEst, type Est, type Reliability } from "../profile/moe.js";
 import { geoId, type Row, type Store } from "../profile/store.js";
 import { MIN_GROUP, PER, clearlyDiffers, expected, rate, versus, type PerGroup } from "./compare.js";
+import { FULL_LINE, STORE_TYPES, type Retailer, type SnapStore } from "../snap/store.js";
+import { SNAP_ATTRIBUTION, SNAP_MISSING, SNAP_NOTE, SNAP_SOURCE, isSnapRequest, snapTerritoryNote } from "../snap/words.js";
 import type { PlacesStore } from "./store.js";
-import { matchType } from "./types.js";
+import { matchType, type TypeMatch } from "./types.js";
 
 export const MAX_TYPES = 5;
 const MAX_NEAREST = 5;
@@ -29,6 +31,8 @@ export interface NearbyOptions {
   per?: PerGroup;
   /** A test seam; the default is MAX_TRACTS. */
   maxTracts?: number;
+  /** USDA's SNAP retailers. Absent or null when the data is not available. */
+  snap?: SnapStore | null;
 }
 
 export class NearbyInputError extends Error {
@@ -43,6 +47,48 @@ interface Counted {
   rate: number | null;
 }
 
+/** A count here beside the county, state and US, with the comparison in words. */
+export interface Line {
+  here: Counted;
+  county: Counted;
+  state: Counted;
+  us: Counted;
+  expected_at_county_rate: number | null;
+  vs_county: string;
+}
+
+/** USDA's SNAP retailers, for a SNAP request. */
+export interface SnapAnswer {
+  asked: string;
+  source: typeof SNAP_SOURCE;
+  as_of: string;
+  /** Supermarkets, super stores and grocery stores. */
+  full_line: Line;
+  all_retailers: Line;
+  by_type: ({ type: string } & Pick<Line, "here" | "county" | "vs_county">)[];
+  nearest_full_line: Retailer[];
+}
+
+/** A SNAP request that cannot be answered here, and why. */
+export interface SnapNote {
+  asked: string;
+  source: typeof SNAP_SOURCE;
+  note: string;
+}
+
+export type Official = { source: typeof SNAP_SOURCE; as_of: string; what: string } & Line;
+
+export interface PerBlock {
+  group: PerGroup;
+  label: string;
+  unit: number;
+  here: number | null;
+  county: number | null;
+  state: number | null;
+  us: number | null;
+  reliability: Reliability;
+}
+
 export interface TypeAnswer {
   asked: string;
   /** The node of the type tree that was counted, with everything beneath it. */
@@ -54,6 +100,8 @@ export interface TypeAnswer {
   expected_at_county_rate: number | null;
   vs_county: string;
   nearest: { name: string | null; type: string; address: string | null; miles: number }[];
+  /** USDA's count of SNAP-authorised full-line food stores, for grocery stores. */
+  official?: Official;
 }
 
 export interface TypeCandidates {
@@ -86,17 +134,9 @@ export interface Nearby {
     tracts_in_range: number;
     covered_miles: number;
   };
-  per: {
-    group: PerGroup;
-    label: string;
-    unit: number;
-    here: number | null;
-    county: number | null;
-    state: number | null;
-    us: number | null;
-    reliability: Reliability;
-  };
-  types?: (TypeAnswer | TypeCandidates)[];
+  /** What Overture rates are per; `usda` says what USDA rates are per when it differs. */
+  per: PerBlock & { usda?: PerBlock };
+  types?: (TypeAnswer | TypeCandidates | SnapAnswer | SnapNote)[];
   overview?: {
     over: OverviewItem[];
     under: OverviewItem[];
@@ -104,7 +144,13 @@ export interface Nearby {
     none_found_here: OverviewItem[];
   };
   notes: string[];
-  data: { source: string; release: string; built: string; attribution: string };
+  data: {
+    source: string;
+    release: string;
+    built: string;
+    attribution: string;
+    snap?: { source: typeof SNAP_SOURCE; as_of: string; built: string; attribution: string };
+  };
 }
 
 const NOTES = [
@@ -151,6 +197,11 @@ export function baselineNotes(
 }
 
 const round = (v: number, places: number) => Math.round(v * 10 ** places) / 10 ** places;
+const OFFICIAL_WHAT = "SNAP-authorised supermarkets, super stores and grocery stores";
+const sumOf = (counts: Map<string, number>, types?: readonly string[]) =>
+  types
+    ? types.reduce((a, t) => a + (counts.get(t) ?? 0), 0)
+    : [...counts.values()].reduce((a, b) => a + b, 0);
 
 export async function nearbyPlaces(
   located: Located,
@@ -181,8 +232,12 @@ export async function nearbyPlaces(
   const stateGeo = geoId("state", state);
   const usGeo = geoId("us");
 
+  // USDA lines are rated per household on SNAP unless a group was asked for.
+  const usdaGroup: PerGroup = opts.per ?? "snap_households";
+  const groups = asked.length > 0 ? [group, usdaGroup] : [group];
+
   // Group sizes come from the profile data: one read per table for every geography.
-  const cells: Cell[] = [...new Set([...per.cells, "B01003_001"])];
+  const cells: Cell[] = [...new Set([...groups.flatMap((g) => PER[g].cells), "B01003_001"])];
   const rows = new Map<string, Map<string, Row>>();
   for (const table of new Set(cells.map(tableOf))) {
     rows.set(table, await store.rows(table, [usGeo, stateGeo, countyGeo, ...tractGeos]));
@@ -200,30 +255,59 @@ export async function nearbyPlaces(
     );
   const whole = (e: Est) => (e.est === null ? null : Math.round(e.est));
 
-  const groupHere = size(tractGeos, per.cells);
-  const here = whole(groupHere);
-  const inCounty = whole(size([countyGeo], per.cells));
-  const inState = whole(size([stateGeo], per.cells));
-  const inUs = whole(size([usGeo], per.cells));
-  const population = whole(size(tractGeos, ["B01003_001"]));
-
-  // A group whose size here is itself unreliable cannot carry a rate.
-  const shaky = reliability(groupHere) === "unreliable";
-  const usable = here !== null && here >= MIN_GROUP && !shaky;
-  const counted = (count: number, members: number | null): Counted => ({
-    count,
-    rate: rate(count, members, per.unit),
-  });
-  const countedHere = (count: number): Counted => ({ count, rate: usable ? rate(count, here, per.unit) : null });
-  /** The count here against the county, in words. */
-  const compare = (countHere: number, countCounty: number): { exp: number | null; words: string } => {
-    if (here === null) return { exp: null, words: NO_POPULATION };
-    if (shaky && here >= MIN_GROUP) {
-      return { exp: null, words: `the number of ${per.label} here is too uncertain to compare` };
-    }
-    const exp = usable ? expected(here, countCounty, inCounty) : null;
-    return { exp, words: versus(countHere, exp, here, per.label) };
+  /** Sizes of a group here and in each larger area, and how counts are rated and compared against it. */
+  const groupContext = (g: PerGroup) => {
+    const def = PER[g];
+    const groupHere = size(tractGeos, def.cells);
+    const here = whole(groupHere);
+    const inCounty = whole(size([countyGeo], def.cells));
+    const inState = whole(size([stateGeo], def.cells));
+    const inUs = whole(size([usGeo], def.cells));
+    // A group whose size here is itself unreliable cannot carry a rate.
+    const shaky = reliability(groupHere) === "unreliable";
+    const usable = here !== null && here >= MIN_GROUP && !shaky;
+    const counted = (count: number, members: number | null): Counted => ({
+      count,
+      rate: rate(count, members, def.unit),
+    });
+    const countedHere = (count: number): Counted => ({ count, rate: usable ? rate(count, here, def.unit) : null });
+    /** The count here against the county, in words. */
+    const compare = (countHere: number, countCounty: number): { exp: number | null; words: string } => {
+      if (here === null) return { exp: null, words: NO_POPULATION };
+      if (shaky && here >= MIN_GROUP) {
+        return { exp: null, words: `the number of ${def.label} here is too uncertain to compare` };
+      }
+      const exp = usable ? expected(here, countCounty, inCounty) : null;
+      return { exp, words: versus(countHere, exp, here, def.label) };
+    };
+    /** A count here beside the county, state and US. */
+    const line = (countHere: number, countCounty: number, countState: number, countUs: number): Line => {
+      const { exp, words } = compare(countHere, countCounty);
+      return {
+        here: countedHere(countHere),
+        county: counted(countCounty, inCounty),
+        state: counted(countState, inState),
+        us: counted(countUs, inUs),
+        expected_at_county_rate: exp === null ? null : round(exp, 1),
+        vs_county: words,
+      };
+    };
+    const block: PerBlock = {
+      group: g,
+      label: def.label,
+      unit: def.unit,
+      here,
+      county: inCounty,
+      state: inState,
+      us: inUs,
+      reliability: reliability(groupHere),
+    };
+    return { def, here, inCounty, inState, inUs, shaky, usable, counted, countedHere, compare, line, block };
   };
+
+  const main = groupContext(group);
+  const { here, inCounty, inState, inUs, shaky, usable, counted, countedHere, compare } = main;
+  const population = whole(size(tractGeos, ["B01003_001"]));
 
   const result: Nearby = {
     location: {
@@ -242,16 +326,7 @@ export async function nearbyPlaces(
       tracts_in_range: area.inRange,
       covered_miles: round(area.coveredMiles, 2),
     },
-    per: {
-      group,
-      label: per.label,
-      unit: per.unit,
-      here,
-      county: inCounty,
-      state: inState,
-      us: inUs,
-      reliability: reliability(groupHere),
-    },
+    per: { ...main.block },
     notes: [...NOTES],
     data: {
       source: "Overture Maps Places",
@@ -263,13 +338,72 @@ export async function nearbyPlaces(
 
   if (asked.length > 0) {
     const nodes = await places.types();
-    const answers: (TypeAnswer | TypeCandidates)[] = [];
-    const matches = asked.map((words) => matchType(words, nodes));
+    const answers: (TypeAnswer | TypeCandidates | SnapAnswer | SnapNote)[] = [];
+    // SNAP words are answered from USDA's list, before any Overture matching.
+    const matches: (TypeMatch | "snap")[] = asked.map((words) => (isSnapRequest(words) ? "snap" : matchType(words, nodes)));
+    const isGrocery = (m: TypeMatch | "snap") => m !== "snap" && "path" in m && m.name === "grocery_store";
+
+    // One read of USDA's list serves every SNAP entry and every grocery answer.
+    const territoryNote = snapTerritoryNote(state);
+    const snap = opts.snap ?? null;
+    const wantsUsda = matches.some((m) => m === "snap" || isGrocery(m));
+    let usda:
+      | { ctx: ReturnType<typeof groupContext>; asOf: string; fullLine: Line; all: Line; snapAnswer: (words: string) => SnapAnswer }
+      | undefined;
+    if (wantsUsda && snap && !territoryNote) {
+      const ctx = usdaGroup === group ? main : groupContext(usdaGroup);
+      const found = await snap.around(area.tracts, located.lat, located.lon, MAX_NEAREST);
+      const inCountyTypes = await snap.countsIn("county", county);
+      const inStateTypes = await snap.countsIn("state", state);
+      const inUsTypes = await snap.countsIn("us", "");
+      const lineOf = (types?: readonly string[]) =>
+        ctx.line(sumOf(found.byType, types), sumOf(inCountyTypes, types), sumOf(inStateTypes, types), sumOf(inUsTypes, types));
+      const fullLine = lineOf(FULL_LINE);
+      const all = lineOf();
+      const typeNames = [...new Set([...STORE_TYPES, ...found.byType.keys(), ...inCountyTypes.keys()])];
+      const byType = typeNames
+        .map((type) => {
+          const countHere = found.byType.get(type) ?? 0;
+          const countCounty = inCountyTypes.get(type) ?? 0;
+          return {
+            type,
+            here: ctx.countedHere(countHere),
+            county: ctx.counted(countCounty, ctx.inCounty),
+            vs_county: ctx.compare(countHere, countCounty).words,
+          };
+        })
+        .sort((a, b) => b.here.count - a.here.count || a.type.localeCompare(b.type));
+      const asOf = snap.manifest.as_of;
+      usda = {
+        ctx,
+        asOf,
+        fullLine,
+        all,
+        snapAnswer: (words) => ({
+          asked: words,
+          source: SNAP_SOURCE,
+          as_of: asOf,
+          full_line: fullLine,
+          all_retailers: all,
+          by_type: byType,
+          nearest_full_line: found.nearestFullLine,
+        }),
+      };
+    }
+
     // One pass over the area's places for every type that matched.
-    const matchedPaths = matches.flatMap((m) => ("path" in m ? [m.path] : []));
+    const matchedPaths = matches.flatMap((m) => (m !== "snap" && "path" in m ? [m.path] : []));
     const found = await places.around(matchedPaths, area.tracts, located.lat, located.lon, MAX_NEAREST);
     for (const [i, words] of asked.entries()) {
       const match = matches[i];
+      if (match === "snap") {
+        answers.push(
+          usda
+            ? usda.snapAnswer(words)
+            : { asked: words, source: SNAP_SOURCE, note: territoryNote ?? SNAP_MISSING },
+        );
+        continue;
+      }
       if ("candidates" in match) {
         answers.push({
           asked: words,
@@ -286,7 +420,7 @@ export async function nearbyPlaces(
       const countCounty = await places.countIn("county", county, node);
       const { exp, words: vs } = compare(countHere, countCounty);
       const nearest = found.nearest[at];
-      answers.push({
+      const answer: TypeAnswer = {
         asked: words,
         matched: node,
         here: countedHere(countHere),
@@ -296,9 +430,22 @@ export async function nearbyPlaces(
         expected_at_county_rate: exp === null ? null : round(exp, 1),
         vs_county: vs,
         nearest: nearest.map(({ name, type, address, miles }) => ({ name, type, address, miles })),
-      });
+      };
+      if (usda && isGrocery(match)) {
+        answer.official = { source: SNAP_SOURCE, as_of: usda.asOf, what: OFFICIAL_WHAT, ...usda.fullLine };
+      }
+      answers.push(answer);
     }
     result.types = answers;
+    if (usda) {
+      if (usdaGroup !== group) result.per.usda = usda.ctx.block;
+      result.data.snap = {
+        source: SNAP_SOURCE,
+        as_of: usda.asOf,
+        built: snap!.manifest.built,
+        attribution: SNAP_ATTRIBUTION(usda.asOf),
+      };
+    }
   } else {
     const broadHere = await places.broadHere(area.tracts);
     const broadCounty = await places.broadIn("county", county);
@@ -373,5 +520,6 @@ export async function nearbyPlaces(
   if (result.types?.some((t) => "vs_county" in t && t.vs_county === TOO_FEW)) {
     notes.push("Try a wider radius for rarer types.");
   }
+  if (result.data.snap) notes.push(SNAP_NOTE(result.data.snap.as_of));
   return result;
 }
