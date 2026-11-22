@@ -63,6 +63,32 @@ export async function checkPlacesDeployable(
   return { places: manifest.places, megabytes: Math.round((bytes / 1024 ** 2) * 10) / 10 };
 }
 
+const HOW_SNAP = "Build it first: npm run build && npm run build:snap";
+
+export async function checkSnapDeployable(
+  dataDir: string,
+): Promise<{ retailers: number; megabytes: number }> {
+  let manifest: { retailers: number };
+  try {
+    manifest = JSON.parse(await readFile(join(dataDir, "manifest.json"), "utf8")) as { retailers: number };
+  } catch {
+    throw new Error(`No SNAP retailer data at ${dataDir}. ${HOW_SNAP}`);
+  }
+  const missing: string[] = [];
+  let bytes = 0;
+  for (const name of ["retailers.parquet", "snap-counts.parquet"]) {
+    try {
+      bytes += (await stat(join(dataDir, name))).size;
+    } catch {
+      missing.push(name);
+    }
+  }
+  if (missing.length) {
+    throw new Error(`The SNAP retailer data at ${dataDir} is incomplete: ${missing.join(", ")} missing. ${HOW_SNAP}`);
+  }
+  return { retailers: manifest.retailers, megabytes: Math.round((bytes / 1024 ** 2) * 10) / 10 };
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   // The image always carries data/acs from the project, whatever CENSUS_DATA_DIR says.
   (async () => {
@@ -70,6 +96,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     process.stderr.write(`Profile data ready: ${r.tables} tables, ${r.megabytes} MB.\n`);
     const p = await checkPlacesDeployable(join(DATA_DIR, "places"));
     process.stderr.write(`Places data ready: ${p.places} places, ${p.megabytes} MB.\n`);
+    const s = await checkSnapDeployable(join(DATA_DIR, "snap"));
+    process.stderr.write(`SNAP retailer data ready: ${s.retailers} retailers, ${s.megabytes} MB.\n`);
   })().then(
     () => undefined,
     (err) => {

@@ -36,7 +36,8 @@ outside request. The profile itself is computed from published statistics
 held on the server; nothing about the request is sent to the Census API.
 
 `nearby_places` handles a location the same way. The places it counts are
-held on the server, so a places request goes nowhere else.
+held on the server, as is USDA's list of SNAP retailers, so a places or SNAP
+request goes nowhere else.
 
 ## What it keeps
 

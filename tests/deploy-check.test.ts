@@ -54,3 +54,17 @@ describe("checkPlacesDeployable", () => {
     await places.cleanup();
   });
 });
+
+describe("checkSnapDeployable", () => {
+  it("passes on a complete SNAP directory and names a missing file", async () => {
+    const { checkSnapDeployable } = await import("../src/scripts/deploy-check.js");
+    const { buildSnapFixture } = await import("./snap-fixture.js");
+    const snap = await buildSnapFixture();
+    expect((await checkSnapDeployable(snap.dir)).retailers).toBe(12);
+    await rm(join(snap.dir, "snap-counts.parquet"));
+    await expect(checkSnapDeployable(snap.dir)).rejects.toThrow(/snap-counts\.parquet/);
+    await expect(checkSnapDeployable(snap.dir)).rejects.toThrow(/npm run build:snap/);
+    await expect(checkSnapDeployable("/nonexistent/snap")).rejects.toThrow(/npm run build:snap/);
+    await snap.cleanup();
+  });
+});

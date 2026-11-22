@@ -7,12 +7,15 @@ import { createGeocoder, type Geocoder } from "./geocode.js";
 import { tablesUsed } from "./definition.js";
 import { geoId, openStore, type Store } from "./store.js";
 import { openPlaces, type PlacesStore } from "../places/store.js";
+import { openSnap, type SnapStore } from "../snap/store.js";
 
 export interface ProfileRuntime {
   /** The open store. A failed open is tried again on the next call. */
   store(): Promise<Store>;
   /** The open places data, for nearby_places. A failed open is tried again. */
   places(): Promise<PlacesStore>;
+  /** The open SNAP retailer data, for nearby_places. A failed open is tried again. */
+  snap(): Promise<SnapStore>;
   geocoder: Geocoder;
   /** Counts a profile or places request. False when this minute's ceiling is reached. */
   admit(): boolean;
@@ -54,6 +57,7 @@ export function createProfileRuntime(
   opts: {
     openStore?: () => Promise<Store>;
     openPlaces?: () => Promise<PlacesStore>;
+    openSnap?: () => Promise<SnapStore>;
     geocoder?: Geocoder;
     maxPerMinute?: number;
     maxConcurrent?: number;
@@ -87,10 +91,20 @@ export function createProfileRuntime(
     });
     return pendingPlaces;
   };
+  const openSnapData = opts.openSnap ?? (() => openSnap());
+  let pendingSnap: Promise<SnapStore> | undefined;
+  const snap = () => {
+    pendingSnap ??= openSnapData().catch((err) => {
+      pendingSnap = undefined;
+      throw err;
+    });
+    return pendingSnap;
+  };
   return {
     geocoder: opts.geocoder ?? createGeocoder(),
     store,
     places,
+    snap,
     async warm() {
       try {
         const s = await store();
@@ -104,6 +118,11 @@ export function createProfileRuntime(
         await p.countIn("us", "", "warm");
       } catch {
         // The first nearby_places call will report what is wrong.
+      }
+      try {
+        await (await snap()).countsIn("us", "");
+      } catch {
+        // SNAP requests will say the data is missing.
       }
     },
     async run(work) {

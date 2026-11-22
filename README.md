@@ -131,6 +131,34 @@ This reads the pinned Overture release from its public bucket, assigns each
 of about 12 million US places to its census tract, and writes about 330 MB
 to `data/places/`. It takes about five minutes and needs the `unzip` command.
 
+### SNAP retailers
+
+> Where can people near 98118 spend SNAP benefits?
+
+Ask for "SNAP stores" (or "EBT", "food stamps") and the answer comes from
+USDA's list of stores currently authorised to take SNAP, not from Overture:
+full-line food stores (supermarkets, super stores and grocery stores) first,
+then all SNAP retailers, then the count for each USDA store type, with the
+nearest full-line stores by name. These counts are exact for the date of
+USDA's list. They are rated per 1,000 households on SNAP unless `per` asks
+for another group. Answers about grocery stores or supermarkets also carry
+USDA's full-line count beside Overture's, under `official`.
+
+Puerto Rico, American Samoa and the Northern Mariana Islands run their own
+nutrition assistance programs in place of SNAP, so there the answer says so
+in place of a count. Guam and the Virgin Islands are in SNAP.
+
+The list is built separately, so it can be refreshed as often as USDA
+updates it (roughly monthly), and needs no key:
+
+```
+npm run build
+npm run build:snap
+```
+
+It downloads USDA's list (about 35 MB), assigns each retailer to its census
+tract, and writes to `data/snap/`. It needs the `unzip` command.
+
 ## API key
 
 Data queries need a Census API key. It is free:
@@ -207,6 +235,7 @@ beyond 120 calls a minute; requests to the Census API are capped at 120 a minute
 | `PORT` | `8787` | HTTP port. |
 | `PROFILE_MAX_PER_MINUTE` | `120` | Ceiling on `profile_place` and `nearby_places` calls per minute, together. |
 | `CENSUS_PLACES_DIR` | `data/places` | Where `nearby_places` reads its data. |
+| `CENSUS_SNAP_DIR` | `data/snap` | Where `nearby_places` reads USDA's SNAP retailers. |
 | `CENSUS_DATA_DIR` | `data/acs` | Where `profile_place` reads its data: a directory, or an `https://` address serving the same files. |
 | `CENSUS_MAX_REQUESTS_PER_MINUTE` | `120` | Ceiling on requests to the Census API, to protect the key. Cached answers do not count. |
 
@@ -219,6 +248,7 @@ npm run build:catalog    # refresh data/catalog.json from the Census API
 CENSUS_API_KEY=... npm run build:geo   # refresh data/counties.json
 CENSUS_API_KEY=... npm run build:acs   # build the profile data into data/acs
 npm run build:places     # build the places data into data/places
+npm run build:snap       # build USDA's SNAP retailers into data/snap
 npm run check:profile    # refresh data/acs-labels.json after editing the profile
 ```
 
@@ -248,6 +278,11 @@ from Foursquare (Copyright 2024 Foursquare Labs, Inc. All rights reserved.
 Available under Apache 2.0. Foursquare data was transformed to the Overture
 schema. [NOTICE](https://opensource.foursquare.com/places-notice-txt/)); and
 from AllThePlaces (available under CC0 1.0). This project filters that data
-and assigns each place to a census tract. This
+and assigns each place to a census tract.
+
+SNAP retailer data: U.S. Department of Agriculture, Food and Nutrition
+Service, SNAP Retailer Locator data. It states no licence; as a work of the
+U.S. government it is treated as public domain, and credited with its date in
+every answer that uses it. This
 product uses the Census Bureau Data API but is not endorsed or certified by
 the Census Bureau.

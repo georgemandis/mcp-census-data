@@ -9,6 +9,7 @@ import { searchGroups, searchVariables } from "./core/variables.js";
 import { PER, type PerGroup } from "./places/compare.js";
 import { MAX_TYPES, NearbyInputError, nearbyPlaces } from "./places/nearby.js";
 import { PlacesMissingError } from "./places/store.js";
+import { SnapMissingError } from "./snap/store.js";
 import { LocateError, locate, type Located } from "./profile/locate.js";
 import {
   DEFAULT_RADIUS_MILES,
@@ -402,7 +403,7 @@ export function registerTools(server: McpServer, deps: ToolDeps): void {
     {
       title: "What's around a place",
       description:
-        "What is around a place, set against who lives there. Give the same kind of location as profile_place. For each type of place asked about (libraries, grocery stores, tutors, food banks, fire stations, places of worship: any type), returns how many there are in the same area profile_place describes, as a rate per resident, beside the same rate for the county, state and US, a plain-words comparison with the county, and the nearest few by name. Omit 'types' for an overview of which broad types are over- and under-represented compared with the county. Use 'per' to rate against a group of residents instead, such as children or households on SNAP. Pair this with profile_place to compare what is there with who is there. Types may be ordinary words or Overture type names; when the words are unclear nothing is counted and candidate types are returned, so ask again with one of them. Counts come from Overture Maps and are approximate: types are sometimes wrong and coverage varies, so a lower rate can mean less complete mapping. 'Too few to compare' is common at a 1-mile radius for rare types; try a wider radius.",
+        "What is around a place, set against who lives there. Give the same kind of location as profile_place. For each type of place asked about (libraries, grocery stores, tutors, food banks, fire stations, places of worship: any type), returns how many there are in the same area profile_place describes, as a rate per resident, beside the same rate for the county, state and US, a plain-words comparison with the county, and the nearest few by name. Omit 'types' for an overview of which broad types are over- and under-represented compared with the county. Use 'per' to rate against a group of residents instead, such as children or households on SNAP. Pair this with profile_place to compare what is there with who is there. Types may be ordinary words or Overture type names; when the words are unclear nothing is counted and candidate types are returned, so ask again with one of them. Counts come from Overture Maps and are approximate: types are sometimes wrong and coverage varies, so a lower rate can mean less complete mapping. 'Too few to compare' is common at a 1-mile radius for rare types; try a wider radius. Ask about \"SNAP stores\" (or EBT, food stamps) for USDA's official list of SNAP-authorised retailers: full-line food stores first, then all retailers by type, rated per household on SNAP. Grocery store answers include USDA's full-line count beside Overture's.",
       inputSchema: {
         location: locationInput,
         types: z
@@ -427,6 +428,11 @@ export function registerTools(server: McpServer, deps: ToolDeps): void {
       async (args: { location: string; types?: string[]; radius_miles?: number; per?: PerGroup }) => {
         const { located, result: answer } = await aroundPlace(args.location, async (located, store) =>
           nearbyPlaces(located, store, await profileRuntime.places(), {
+            // Without the SNAP data, SNAP entries say so and everything else is answered.
+            snap: await profileRuntime.snap().catch((e) => {
+              if (e instanceof SnapMissingError) return null;
+              throw e;
+            }),
             types: args.types,
             radiusMiles: args.radius_miles,
             per: args.per,

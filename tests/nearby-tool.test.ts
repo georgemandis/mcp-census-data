@@ -8,7 +8,10 @@ import { createProfileRuntime } from "../src/profile/runtime.js";
 import { openStore } from "../src/profile/store.js";
 import { registerTools } from "../src/tools.js";
 import { recordingClient } from "./helpers.js";
+import { SnapMissingError, openSnap, type SnapStore } from "../src/snap/store.js";
+import { SNAP_MISSING } from "../src/snap/words.js";
 import { buildPlacesFixture } from "./places-fixture.js";
+import { buildSnapFixture } from "./snap-fixture.js";
 import { CENTRE, TRACT, buildFixture } from "./profile-fixture.js";
 
 const SECRET = "123 Secret St, Seattle WA";
@@ -16,13 +19,16 @@ type LogEntry = { tool: string; ms: number; ok: boolean };
 
 let profileFixture: Awaited<ReturnType<typeof buildFixture>>;
 let placesFixture: Awaited<ReturnType<typeof buildPlacesFixture>>;
+let snapFixture: Awaited<ReturnType<typeof buildSnapFixture>>;
 beforeAll(async () => {
   profileFixture = await buildFixture();
   placesFixture = await buildPlacesFixture();
+  snapFixture = await buildSnapFixture();
 });
 afterAll(async () => {
   await profileFixture.cleanup();
   await placesFixture.cleanup();
+  await snapFixture.cleanup();
 });
 
 const working: Geocoder = {
@@ -35,13 +41,19 @@ const broken: Geocoder = {
 };
 
 async function connect(
-  opts: { geocoder?: Geocoder; openPlaces?: () => Promise<PlacesStore>; maxPerMinute?: number } = {},
+  opts: {
+    geocoder?: Geocoder;
+    openPlaces?: () => Promise<PlacesStore>;
+    openSnap?: () => Promise<SnapStore>;
+    maxPerMinute?: number;
+  } = {},
 ) {
   const logs: LogEntry[] = [];
   const { client, paths } = recordingClient();
   const profile = createProfileRuntime({
     openStore: () => openStore(profileFixture.dir),
     openPlaces: opts.openPlaces ?? (() => openPlaces(placesFixture.dir)),
+    openSnap: opts.openSnap ?? (() => openSnap(snapFixture.dir)),
     geocoder: opts.geocoder ?? working,
     maxPerMinute: opts.maxPerMinute,
   });
@@ -97,6 +109,40 @@ describe("nearby_places", () => {
     const { call } = await connect();
     const answer = JSON.parse(texts(await call({ location: "98101", types: ["grocery stores"], per: "snap_households" }))[1]);
     expect(answer.per.group).toBe("snap_households");
+  });
+
+  it("mentions USDA's SNAP retailers in its description", async () => {
+    const { mcp } = await connect();
+    const tool = (await mcp.listTools()).tools.find((t) => t.name === "nearby_places")!;
+    expect(tool.description).toMatch(/USDA/);
+    expect(tool.description).toMatch(/SNAP stores/);
+  });
+
+  it("answers SNAP questions from USDA's list", async () => {
+    const { call } = await connect();
+    const answer = JSON.parse(texts(await call({ location: "98101", types: ["SNAP stores", "grocery stores"] }))[1]);
+    expect(answer.types[0].source).toBe("USDA SNAP retailers");
+    expect(answer.types[0].full_line.here.count).toBeGreaterThan(0);
+    expect(answer.types[1].official.source).toBe("USDA SNAP retailers");
+  });
+
+  it("still answers when the SNAP data is missing, saying so", async () => {
+    const { call } = await connect({ openSnap: async () => { throw new SnapMissingError("/nowhere"); } });
+    const r = await call({ location: "98101", types: ["SNAP stores", "libraries"] });
+    expect(r.isError).toBeFalsy();
+    const answer = JSON.parse(texts(r)[1]);
+    expect(answer.types[0].note).toBe(SNAP_MISSING);
+    expect(answer.types[1].here.count).toBe(2);
+  });
+
+  it("hides other SNAP failures behind the fixed message", async () => {
+    const { call, logs } = await connect({ openSnap: async () => { throw new Error("boom /secret/path"); } });
+    const r = await call({ location: SECRET, types: ["SNAP stores"] });
+    expect(r.isError).toBe(true);
+    expect(texts(r)[0]).toBe("The request could not be completed because of an internal error.");
+    expect(JSON.stringify(r)).not.toMatch(/boom|secret/i);
+    expect(JSON.stringify(logs)).not.toMatch(/Secret|boom/);
+    expect(logs).toEqual([{ tool: "nearby_places", ms: expect.any(Number), ok: false }]);
   });
 
   it("treats unclear words as an answer with candidates, not an error", async () => {

@@ -140,3 +140,39 @@ describe("run", () => {
     expect(results.filter((r) => r.status === "rejected")).toHaveLength(90);
   });
 });
+
+describe("snap", () => {
+  it("opens the SNAP data once and shares it", async () => {
+    let opens = 0;
+    const fake = { manifest: {}, close: async () => undefined } as never;
+    const rt = createProfileRuntime({ openSnap: async () => { opens++; return fake; } });
+    expect(await rt.snap()).toBe(fake);
+    expect(await rt.snap()).toBe(fake);
+    expect(opens).toBe(1);
+  });
+
+  it("tries again after a failed open", async () => {
+    let opens = 0;
+    const fake = { manifest: {} } as never;
+    const rt = createProfileRuntime({
+      openSnap: async () => {
+        opens++;
+        if (opens === 1) throw new Error("not yet");
+        return fake;
+      },
+    });
+    await expect(rt.snap()).rejects.toThrow("not yet");
+    expect(await rt.snap()).toBe(fake);
+  });
+
+  it("is warmed with the rest", async () => {
+    const counted: string[] = [];
+    const rt = createProfileRuntime({
+      openStore: async () => { throw new Error("no data"); },
+      openPlaces: async () => { throw new Error("no data"); },
+      openSnap: async () => ({ countsIn: async (level: string) => { counted.push(level); return new Map(); } }) as never,
+    });
+    await rt.warm();
+    expect(counted).toEqual(["us"]);
+  });
+});
