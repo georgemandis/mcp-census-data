@@ -40,3 +40,17 @@ describe("checkDeployable", () => {
     await broken.cleanup();
   });
 });
+
+describe("checkPlacesDeployable", () => {
+  it("passes on a complete places directory and names a missing file", async () => {
+    const { checkPlacesDeployable } = await import("../src/scripts/deploy-check.js");
+    const { buildPlacesFixture } = await import("./places-fixture.js");
+    const places = await buildPlacesFixture();
+    expect((await checkPlacesDeployable(places.dir)).places).toBe(23);
+    await rm(join(places.dir, "place-counts.parquet"));
+    await expect(checkPlacesDeployable(places.dir)).rejects.toThrow(/place-counts\.parquet/);
+    await expect(checkPlacesDeployable(places.dir)).rejects.toThrow(/npm run build:places/);
+    await expect(checkPlacesDeployable("/nonexistent/places")).rejects.toThrow(/npm run build:places/);
+    await places.cleanup();
+  });
+});

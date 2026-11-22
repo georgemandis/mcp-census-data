@@ -106,7 +106,7 @@ export interface Nearby {
     none_found_here: OverviewItem[];
   };
   notes: string[];
-  data: { source: string; release: string; built: string };
+  data: { source: string; release: string; built: string; attribution: string };
 }
 
 const NOTES = [
@@ -214,7 +214,12 @@ export async function nearbyPlaces(
       reliability: reliability(groupHere),
     },
     notes: [...NOTES],
-    data: { source: "Overture Maps Places", release: places.manifest.release, built: places.manifest.built },
+    data: {
+      source: "Overture Maps Places",
+      release: places.manifest.release,
+      built: places.manifest.built,
+      attribution: "Overture Maps Foundation, overturemaps.org",
+    },
   };
 
   if (asked.length > 0) {

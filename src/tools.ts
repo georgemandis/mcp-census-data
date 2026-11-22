@@ -6,7 +6,10 @@ import { BUSY_MESSAGE, CensusError } from "./core/errors.js";
 import { listGeographies, resolveGeography } from "./core/geography.js";
 import { queryData } from "./core/query.js";
 import { searchGroups, searchVariables } from "./core/variables.js";
-import { LocateError, locate } from "./profile/locate.js";
+import { PER, type PerGroup } from "./places/compare.js";
+import { MAX_TYPES, NearbyInputError, nearbyPlaces } from "./places/nearby.js";
+import { PlacesMissingError } from "./places/store.js";
+import { LocateError, locate, type Located } from "./profile/locate.js";
 import {
   DEFAULT_RADIUS_MILES,
   MAX_RADIUS_MILES,
@@ -15,7 +18,7 @@ import {
   buildProfile,
 } from "./profile/profile.js";
 import { ProfileBusyError, defaultProfileRuntime, type ProfileRuntime } from "./profile/runtime.js";
-import { DataMissingError } from "./profile/store.js";
+import { DataMissingError, type Store } from "./profile/store.js";
 
 export interface ToolDeps {
   client: CensusClient;
@@ -301,6 +304,64 @@ export function registerTools(server: McpServer, deps: ToolDeps): void {
 
   const profileRuntime = deps.profile ?? defaultProfileRuntime();
 
+  const locationInput = z
+    .preprocess(
+      // A ZIP sometimes arrives as a number, which drops a leading zero.
+      (v) => (typeof v === "number" && Number.isInteger(v) && v >= 0 ? String(v).padStart(5, "0") : v),
+      z.string().trim().min(1).max(200)
+    )
+    .describe(
+      "A street address ('400 Broad St, Seattle, WA'), a 5-digit ZIP, a place with its state ('Austin, TX'), or 'latitude, longitude'."
+    );
+  const radiusInput = z
+    .number()
+    .min(0)
+    .max(MAX_RADIUS_MILES)
+    .optional()
+    .describe(
+      `Distance around the point to include, in miles. Default ${DEFAULT_RADIUS_MILES}, max ${MAX_RADIUS_MILES}. Use 0 for the single census tract at the point.`
+    );
+
+  const whereText = (located: Located, area: { radius_miles: number; covered_miles: number }) =>
+    area.radius_miles > 0
+      ? `the area within ${area.covered_miles} mile${area.covered_miles === 1 ? "" : "s"} of ${located.label}`
+      : `the census tract at ${located.label}`;
+
+  /**
+   * Resolves the location and runs the work for one of the place tools,
+   * under their shared limits. Every failure becomes a fixed or input-free
+   * message: the location may be a home address.
+   */
+  async function aroundPlace<T>(
+    location: string,
+    work: (located: Located, store: Store) => Promise<T>
+  ): Promise<{ located: Located; result: T }> {
+    if (!profileRuntime.admit()) throw new ToolError(BUSY_MESSAGE);
+    try {
+      return await profileRuntime.run(async () => {
+        const store = await profileRuntime.store();
+        const located = await locate(location, { store, geocoder: profileRuntime.geocoder });
+        return { located, result: await work(located, store) };
+      });
+    } catch (e) {
+      if (e instanceof ProfileBusyError) throw new ToolError(BUSY_MESSAGE);
+      if (e instanceof DataMissingError) {
+        throw new ToolError(
+          "The profile data has not been built on this server. Run: npm run build && npm run build:acs"
+        );
+      }
+      if (e instanceof PlacesMissingError) {
+        throw new ToolError(
+          "The places data has not been built on this server. Run: npm run build && npm run build:places"
+        );
+      }
+      if (e instanceof LocateError || e instanceof ProfileInputError || e instanceof NearbyInputError) {
+        throw new ToolError(e.message);
+      }
+      throw new ToolError("The request could not be completed because of an internal error.");
+    }
+  }
+
   server.registerTool(
     "profile_place",
     {
@@ -308,23 +369,8 @@ export function registerTools(server: McpServer, deps: ToolDeps): void {
       description:
         "Who lives near a place. Give a street address, a 5-digit ZIP, a place like 'Seattle, WA', or coordinates like '47.61, -122.33'. Returns a profile of the people living within radius_miles (default 1) of that point: age, income and poverty, work, race and origins, households and children, older adults, school, benefit programs (SNAP, Medicaid, SSI and others), housing, and a 'gaps' list comparing need with benefit receipt. Each figure has a count, a share, a margin of error and a reliability label, and is set beside the county, state and US, with a flag when the area differs from its county by more than chance. Use this first for any 'who lives here' or 'what is this neighbourhood like' question; do not assemble it from query_data. Figures are American Community Survey 5-year estimates. Each section lists its source table IDs, which query_data can use for more detail. A ZIP or place name is treated as its centre point plus the radius, not its whole area.",
       inputSchema: {
-        location: z
-          .preprocess(
-            // A ZIP sometimes arrives as a number, which drops a leading zero.
-            (v) => (typeof v === "number" && Number.isInteger(v) && v >= 0 ? String(v).padStart(5, "0") : v),
-            z.string().trim().min(1).max(200)
-          )
-          .describe(
-            "A street address ('400 Broad St, Seattle, WA'), a 5-digit ZIP, a place with its state ('Austin, TX'), or 'latitude, longitude'."
-          ),
-        radius_miles: z
-          .number()
-          .min(0)
-          .max(MAX_RADIUS_MILES)
-          .optional()
-          .describe(
-            `Distance around the point to include, in miles. Default ${DEFAULT_RADIUS_MILES}, max ${MAX_RADIUS_MILES}. Use 0 for the single census tract at the point.`
-          ),
+        location: locationInput,
+        radius_miles: radiusInput,
         sections: z
           .array(z.enum(SECTION_IDS as [string, ...string[]]))
           .optional()
@@ -335,39 +381,64 @@ export function registerTools(server: McpServer, deps: ToolDeps): void {
     guarded(
       "profile_place",
       async (args: { location: string; radius_miles?: number; sections?: string[] }) => {
-        if (!profileRuntime.admit()) throw new ToolError(BUSY_MESSAGE);
-        try {
-          const { located, profile } = await profileRuntime.run(async () => {
-            const store = await profileRuntime.store();
-            const located = await locate(args.location, { store, geocoder: profileRuntime.geocoder });
-            const profile = await buildProfile(located, store, {
-              radiusMiles: args.radius_miles,
-              sections: args.sections,
-            });
-            return { located, profile };
-          });
-          const { area } = profile;
-          const where =
-            area.radius_miles > 0
-              ? `the area within ${area.covered_miles} mile${area.covered_miles === 1 ? "" : "s"} of ${located.label}`
-              : `the census tract at ${located.label}`;
-          const people =
-            area.population === null ? "no figures" : `${area.population.toLocaleString("en-US")} people`;
-          return ok(
-            `Profile of ${where}: ${area.tracts} census tract${area.tracts === 1 ? "" : "s"}, ${people}. Shares are fractions (0.25 = 25%). Read the notes before drawing conclusions.`,
-            profile
-          );
-        } catch (e) {
-          // Fixed or input-free messages only: the location may be a home address.
-          if (e instanceof ProfileBusyError) throw new ToolError(BUSY_MESSAGE);
-          if (e instanceof DataMissingError) {
-            throw new ToolError(
-              "The profile data has not been built on this server. Run: npm run build && npm run build:acs"
-            );
-          }
-          if (e instanceof LocateError || e instanceof ProfileInputError) throw new ToolError(e.message);
-          throw new ToolError("The profile could not be built because of an internal error.");
-        }
+        const { located, result: profile } = await aroundPlace(args.location, (located, store) =>
+          buildProfile(located, store, { radiusMiles: args.radius_miles, sections: args.sections })
+        );
+        const { area } = profile;
+        const people =
+          area.population === null ? "no figures" : `${area.population.toLocaleString("en-US")} people`;
+        return ok(
+          `Profile of ${whereText(located, area)}: ${area.tracts} census tract${area.tracts === 1 ? "" : "s"}, ${people}. Shares are fractions (0.25 = 25%). Read the notes before drawing conclusions.`,
+          profile
+        );
+      }
+    )
+  );
+
+  const PER_GROUPS = Object.keys(PER) as [PerGroup, ...PerGroup[]];
+
+  server.registerTool(
+    "nearby_places",
+    {
+      title: "What's around a place",
+      description:
+        "What is around a place, set against who lives there. Give the same kind of location as profile_place. For each type of place asked about (libraries, grocery stores, tutors, food banks, fire stations, places of worship: any type), returns how many there are in the same area profile_place describes, as a rate per resident, beside the same rate for the county, state and US, a plain-words comparison with the county, and the nearest few by name. Omit 'types' for an overview of which broad types are over- and under-represented compared with the county. Use 'per' to rate against a group of residents instead, such as children or households on SNAP. Pair this with profile_place to compare what is there with who is there. Types may be ordinary words or Overture type names; when the words are unclear nothing is counted and candidate types are returned, so ask again with one of them. Counts come from Overture Maps and are approximate: types are sometimes wrong and coverage varies, so a lower rate can mean less complete mapping. 'Too few to compare' is common at a 1-mile radius for rare types; try a wider radius.",
+      inputSchema: {
+        location: locationInput,
+        types: z
+          .array(z.string().trim().min(1).max(80))
+          .max(MAX_TYPES)
+          .optional()
+          .describe(
+            `Up to ${MAX_TYPES} types of place, in ordinary words ('grocery stores') or as Overture type names ('grocery_store'). Omit for an overview.`
+          ),
+        radius_miles: radiusInput,
+        per: z
+          .enum(PER_GROUPS)
+          .optional()
+          .describe(
+            `What the rate is per. Default 'people' (per 10,000 residents). Others: ${PER_GROUPS.slice(1).join(", ")}.`
+          ),
+      },
+      annotations: live,
+    },
+    guarded(
+      "nearby_places",
+      async (args: { location: string; types?: string[]; radius_miles?: number; per?: PerGroup }) => {
+        const { located, result: answer } = await aroundPlace(args.location, async (located, store) =>
+          nearbyPlaces(located, store, await profileRuntime.places(), {
+            types: args.types,
+            radiusMiles: args.radius_miles,
+            per: args.per,
+          })
+        );
+        const { area } = answer;
+        const what = answer.types ? `${answer.types.length} type(s) of place` : "an overview of place types";
+        return ok(
+          `${what} in ${whereText(located, area)} (${area.tracts} census tract${area.tracts === 1 ? "" : "s"}). Rates are per ${answer.per.unit.toLocaleString("en-US")} ${answer.per.label}. Counts are approximate; read the notes before drawing conclusions.`
+            .replace(/^./, (c) => c.toUpperCase()),
+          answer
+        );
       }
     )
   );

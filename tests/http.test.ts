@@ -48,9 +48,9 @@ test("a malformed body is a 400, not a crash", async () => {
   expect((await fetch(`${base}/health`)).status).toBe(200);
 });
 
-test("an MCP client lists seven tools and calls one", async () => {
+test("an MCP client lists eight tools and calls one", async () => {
   const c = await mcpClient();
-  expect((await c.listTools()).tools).toHaveLength(7);
+  expect((await c.listTools()).tools).toHaveLength(8);
   const r = await c.callTool({ name: "resolve_geography", arguments: { name: "TX" } });
   expect(r.isError).toBeFalsy();
   expect(JSON.parse((r.content as Array<{ text: string }>)[1].text)[0].fips).toBe("48");
@@ -61,8 +61,8 @@ test("an MCP client lists seven tools and calls one", async () => {
 test("a second client works: no session state is kept", async () => {
   const a = await mcpClient();
   const b = await mcpClient();
-  expect((await b.listTools()).tools).toHaveLength(7);
-  expect((await a.listTools()).tools).toHaveLength(7);
+  expect((await b.listTools()).tools).toHaveLength(8);
+  expect((await a.listTools()).tools).toHaveLength(8);
   await a.close();
   await b.close();
 });

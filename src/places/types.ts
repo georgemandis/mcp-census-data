@@ -30,16 +30,45 @@ const FILLER = new Set(["a", "an", "and", "of", "or", "the", "near", "nearby", "
 // Words that say little about what a place is; they count for less.
 const GENERIC = new Set([
   "service", "store", "shop", "place", "center", "centre", "facility", "organization", "establishment",
+  "office",
 ]);
+
+// Everyday names for types whose Overture name shares no word with them.
+// Keys are folded words; values are Overture type names. Each is used only
+// if that type exists in the data.
+const EVERYDAY: Record<string, string> = {
+  church: "christian_place_of_worship",
+  mosque: "muslim_place_of_worship",
+  synagogue: "jewish_place_of_worship",
+  dentist: "dental_clinic",
+  daycare: "child_care_and_day_care",
+  "day care": "child_care_and_day_care",
+  childcare: "child_care_and_day_care",
+  supermarket: "grocery_store",
+  "thrift store": "second_hand_store",
+  "thrift shop": "second_hand_store",
+  "food pantry": "food_bank",
+  college: "college_university",
+  university: "college_university",
+  pinball: "arcade",
+};
+
+/** When several types share a name, one must be this many times larger to be taken. */
+const DOMINANT = 10;
+
+/** A plural as its singular: libraries, churches, parks. */
+function singular(word: string): string {
+  if (word.length > 4 && word.endsWith("ies")) return word.slice(0, -3) + "y";
+  if (/(ch|sh|ss|x)es$/.test(word)) return word.slice(0, -2);
+  if (word.length > 3 && word.endsWith("s") && !word.endsWith("ss")) return word.slice(0, -1);
+  return word;
+}
 
 /** One form for a word and its plural or "-ing" form: tutors, tutoring, tutor. */
 export function fold(word: string): string {
-  let w = word.toLowerCase();
-  if (w.length > 4 && w.endsWith("ies")) return w.slice(0, -3) + "y";
-  if (w.length > 5 && w.endsWith("ing")) w = w.slice(0, -3);
-  else if (/(ch|sh|ss|x)es$/.test(w)) w = w.slice(0, -2);
-  else if (w.length > 3 && w.endsWith("s") && !w.endsWith("ss")) w = w.slice(0, -1);
-  return w;
+  const w = word.toLowerCase();
+  if (w.length > 5 && w.endsWith("ing")) return w.slice(0, -3);
+  return singular(w);
 }
 
 const words = (text: string): string[] =>
@@ -74,15 +103,29 @@ export function matchType(asked: string, nodes: TypeNode[]): TypeMatch {
   const text = normal(asked);
   if (!text) return { candidates: [] };
 
-  // An exact path or an exact type name is taken as given.
-  const byPath = nodes.find((n) => n.path === text);
+  // A full path is taken as given. (A bare word is a name, handled next.)
+  const byPath = text.includes(SEP) ? nodes.find((n) => n.path === text) : undefined;
   if (byPath) return byPath;
-  const asName = text.replace(/[^a-z0-9]+/g, "_");
-  const byName = nodes.filter((n) => n.name === asName);
-  if (byName.length === 1) return byName[0];
 
-  const want = new Set(words(text));
-  if (want.size === 0) return { candidates: [] };
+  // The one type with this name; or, when several share it, one far larger than the rest.
+  const named = (name: string): TypeNode | undefined => {
+    const found = nodes.filter((n) => n.name === name).sort((a, b) => b.n - a.n);
+    if (found.length === 1 || (found.length > 1 && found[0].n >= found[1].n * DOMINANT)) return found[0];
+    return undefined;
+  };
+
+  // A type's own name, as typed or in the plural ("parks" is park, not parking).
+  const asName = text.replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+  const exact = named(asName) ?? named(singular(asName));
+  if (exact) return exact;
+
+  const askedWords = words(text);
+  if (askedWords.length === 0) return { candidates: [] };
+  const everyday = EVERYDAY[askedWords.join(" ")];
+  const known = everyday ? named(everyday) : undefined;
+  if (known) return known;
+
+  const want = new Set(askedWords);
 
   const scored = nodes
     .map((node) => {

@@ -66,7 +66,7 @@ describe("profile_place", () => {
   it("is listed with a title, a description and read-only hints", async () => {
     const { mcp } = await connect();
     const { tools } = await mcp.listTools();
-    expect(tools).toHaveLength(7);
+    expect(tools).toHaveLength(8);
     const tool = tools.find((t) => t.name === "profile_place")!;
     expect(tool.title).toBe("Profile a place");
     expect(tool.annotations).toMatchObject({ readOnlyHint: true, idempotentHint: true, openWorldHint: true });
@@ -240,7 +240,7 @@ describe("profile_place", () => {
       const r = await call({ location: SECRET });
       expect(r.isError).toBe(true);
       expect(texts(r).join(" ")).not.toMatch(/secret/i);
-      expect(texts(r)[0]).toMatch(/could not be built/);
+      expect(texts(r)[0]).toBe("The request could not be completed because of an internal error.");
       expect(JSON.stringify(logs)).not.toMatch(/secret/i);
     });
   });

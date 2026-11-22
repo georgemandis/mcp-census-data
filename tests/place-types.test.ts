@@ -106,3 +106,75 @@ describe("matchType", () => {
     expect(ns[0]).toBeGreaterThanOrEqual(ns[1]);
   });
 });
+
+describe("matchType on awkward everyday words", () => {
+  const more: [string, number][] = [
+    ["sports_and_recreation", 9000],
+    ["sports_and_recreation > park", 1100],
+    ["sports_and_recreation > park > playground", 48],
+    ["travel_and_transportation > parking", 110],
+    ["travel_and_transportation > rv_park", 100],
+    ["food_and_drink", 9000],
+    ["food_and_drink > restaurant", 6950],
+    ["food_and_drink > restaurant > european_restaurant", 1300],
+    ["restaurant", 1],
+    ["health_care", 5000],
+    ["health_care > doctors_office", 1050],
+    ["health_care > dental_clinic", 1500],
+    ["cultural_and_historic > place_of_worship", 3700],
+    ["cultural_and_historic > place_of_worship > christian_place_of_worship", 3600],
+    ["cultural_and_historic > place_of_worship > muslim_place_of_worship", 24],
+    ["cultural_and_historic > place_of_worship > jewish_place_of_worship", 35],
+    ["shopping > church_supply_store", 2],
+    ["shopping > second_hand_store", 660],
+    ["services_and_business > family_service > child_care_and_day_care", 250],
+    ["education > college_university", 270],
+    ["arts_and_entertainment > arcade", 43],
+  ];
+  const all: TypeNode[] = [...nodes, ...more.map(([path, n]) => ({ path, name: path.split(" > ").at(-1)!, n }))];
+  const to = (asked: string) => {
+    const m = matchType(asked, all);
+    return "path" in m ? m.path : m.candidates.map((c) => c.name);
+  };
+
+  it("takes a type's own name in the plural, even when another word folds the same way", () => {
+    expect(to("parks")).toBe("sports_and_recreation > park");
+    expect(to("park")).toBe("sports_and_recreation > park");
+    expect(to("parking")).toBe("travel_and_transportation > parking");
+  });
+
+  it("takes the far larger of two types sharing a name", () => {
+    expect(to("restaurants")).toBe("food_and_drink > restaurant");
+    expect(to("restaurant")).toBe("food_and_drink > restaurant");
+  });
+
+  it("treats 'office' as saying little", () => {
+    expect(to("doctors")).toBe("health_care > doctors_office");
+  });
+
+  it.each([
+    ["churches", "cultural_and_historic > place_of_worship > christian_place_of_worship"],
+    ["mosques", "cultural_and_historic > place_of_worship > muslim_place_of_worship"],
+    ["synagogues", "cultural_and_historic > place_of_worship > jewish_place_of_worship"],
+    ["places of worship", "cultural_and_historic > place_of_worship"],
+    ["dentists", "health_care > dental_clinic"],
+    ["daycare", "services_and_business > family_service > child_care_and_day_care"],
+    ["day cares", "services_and_business > family_service > child_care_and_day_care"],
+    ["childcare", "services_and_business > family_service > child_care_and_day_care"],
+    ["supermarkets", GROCERY_PATH()],
+    ["thrift stores", "shopping > second_hand_store"],
+    ["food pantries", "community_and_government > social_or_community_service > food_bank"],
+    ["colleges", "education > college_university"],
+    ["universities", "education > college_university"],
+    ["pinball", "arts_and_entertainment > arcade"],
+  ])("knows %j by its everyday name", (asked, path) => expect(to(asked)).toBe(path));
+
+  it("ignores an everyday name whose type is not in the data", () => {
+    const m = matchType("mosques", nodes);
+    expect(m).toEqual({ candidates: [] });
+  });
+});
+
+function GROCERY_PATH() {
+  return "shopping > food_and_beverage_store > grocery_store";
+}

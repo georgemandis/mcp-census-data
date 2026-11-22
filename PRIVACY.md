@@ -35,12 +35,17 @@ A ZIP code or a place name is looked up in files on the server, with no
 outside request. The profile itself is computed from published statistics
 held on the server; nothing about the request is sent to the Census API.
 
+`nearby_places` handles a location the same way. The places it counts are
+held on the server, so a places request goes nowhere else.
+
 ## What it keeps
 
 Responses from the Census Bureau are held in memory for up to 24 hours so
 repeat questions are fast. This is published statistical data, not
 information about the person asking. Address lookups are never held.
-Nothing is written to disk, and the cache is lost when the server restarts.
+The server writes nothing to disk. On a hosted copy that sleeps when idle,
+the host keeps a snapshot of the server's memory while it sleeps, which
+includes this cache but no addresses.
 
 ## Contact
 

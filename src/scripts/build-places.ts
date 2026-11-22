@@ -4,8 +4,9 @@
  *
  *   npm run build && npm run build:places
  *
- * Keeps places in the United States and its territories that Overture marks
- * open with confidence 0.75 or more and that have a type, assigns each to
+ * Keeps places in the United States and its territories that have a type
+ * and confidence 0.75 or more, and that Overture marks open (in the
+ * territories, where it records no status, confidence alone decides), assigns each to
  * the census tract containing it, and writes to CENSUS_PLACES_DIR or
  * data/places: the places, counts by type for every county, state and the
  * nation, the list of types, and a manifest.
@@ -59,7 +60,10 @@ export function selectPlacesSql(source: string): string {
            sources[1].license AS license
     FROM ${source}
     WHERE addresses[1].country IN (${COUNTRIES.map((c) => `'${c}'`).join(", ")})
-      AND operating_status = 'open'
+      -- Overture records open or closed mainly for the fifty states and DC.
+      -- Elsewhere the status is blank, so there confidence alone decides.
+      AND (operating_status = 'open'
+           OR (operating_status IS NULL AND addresses[1].country <> 'US'))
       AND confidence >= ${MIN_CONFIDENCE}
       AND taxonomy."primary" IS NOT NULL
       AND len(taxonomy.hierarchy) > 0`;

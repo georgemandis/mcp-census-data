@@ -6,12 +6,15 @@
 import { createGeocoder, type Geocoder } from "./geocode.js";
 import { tablesUsed } from "./definition.js";
 import { geoId, openStore, type Store } from "./store.js";
+import { openPlaces, type PlacesStore } from "../places/store.js";
 
 export interface ProfileRuntime {
   /** The open store. A failed open is tried again on the next call. */
   store(): Promise<Store>;
+  /** The open places data, for nearby_places. A failed open is tried again. */
+  places(): Promise<PlacesStore>;
   geocoder: Geocoder;
-  /** Counts a profile request. False when this minute's ceiling is reached. */
+  /** Counts a profile or places request. False when this minute's ceiling is reached. */
   admit(): boolean;
   /**
    * Runs the work of building one profile. Only a few run at once and a few
@@ -50,6 +53,7 @@ export function profileLimit(env: Record<string, string | undefined> = process.e
 export function createProfileRuntime(
   opts: {
     openStore?: () => Promise<Store>;
+    openPlaces?: () => Promise<PlacesStore>;
     geocoder?: Geocoder;
     maxPerMinute?: number;
     maxConcurrent?: number;
@@ -74,9 +78,19 @@ export function createProfileRuntime(
     });
     return pending;
   };
+  const openPlacesData = opts.openPlaces ?? (() => openPlaces());
+  let pendingPlaces: Promise<PlacesStore> | undefined;
+  const places = () => {
+    pendingPlaces ??= openPlacesData().catch((err) => {
+      pendingPlaces = undefined;
+      throw err;
+    });
+    return pendingPlaces;
+  };
   return {
     geocoder: opts.geocoder ?? createGeocoder(),
     store,
+    places,
     async warm() {
       try {
         const s = await store();
@@ -84,6 +98,12 @@ export function createProfileRuntime(
         await s.places("warm");
       } catch {
         // The first profile_place call will report what is wrong.
+      }
+      try {
+        const p = await places();
+        await p.countIn("us", "", "warm");
+      } catch {
+        // The first nearby_places call will report what is wrong.
       }
     },
     async run(work) {

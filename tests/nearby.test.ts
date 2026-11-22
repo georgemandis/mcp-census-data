@@ -46,7 +46,12 @@ describe("nearbyPlaces: a named type", () => {
       group: "people", label: "residents", unit: 10000,
       here: 3000, county: 10000, state: 100000, us: 1000000, reliability: "reliable",
     });
-    expect(r.data).toEqual({ source: "Overture Maps Places", release: "2026-11-18.0", built: "2026-11-21" });
+    expect(r.data).toEqual({
+      source: "Overture Maps Places",
+      release: "2026-11-18.0",
+      built: "2026-11-21",
+      attribution: "Overture Maps Foundation, overturemaps.org",
+    });
     expect(r.overview).toBeUndefined();
   });
 

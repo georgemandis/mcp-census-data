@@ -52,7 +52,10 @@ beforeAll(async () => {
     row({ name: "Asia Market", lon: 0.4, lat: 0.4, hierarchy: ["shopping", "grocery_store", "asian_grocery_store"], basic: "food_and_beverage_store" }),
     row({ name: "Corner Grocery", lon: 0.6, lat: 0.6, hierarchy: ["shopping", "grocery_store"], basic: "food_and_beverage_store" }),
     row({ name: null, lon: 0.7, lat: 0.7, basic: null }),
-    row({ name: "San Juan Library", lon: 2.2, lat: 2.2, country: "PR" }),
+    // Overture records no open/closed status in the territories; these are kept on confidence.
+    row({ name: "San Juan Library", lon: 2.2, lat: 2.2, country: "PR", status: null }),
+    row({ name: "PR closed", lon: 2.2, lat: 2.2, country: "PR", status: "permanently_closed" }),
+    row({ name: "PR unsure", lon: 2.2, lat: 2.2, country: "PR", status: null, confidence: 0.5 }),
     row({ name: "Closed", lon: 0.5, lat: 0.5, status: "permanently_closed" }),
     row({ name: "No status", lon: 0.5, lat: 0.5, status: null }),
     row({ name: "Unsure", lon: 0.5, lat: 0.5, confidence: 0.74 }),
@@ -83,6 +86,7 @@ describe("constants", () => {
   it("build a select that keeps open, confident places in the US and its territories", () => {
     const sql = selectPlacesSql("raw");
     expect(sql).toContain("operating_status = 'open'");
+    expect(sql).toContain("operating_status IS NULL AND addresses[1].country <> 'US'");
     expect(sql).toContain("confidence >= 0.75");
     for (const c of ["US", "PR", "VI", "GU", "AS", "MP"]) expect(sql).toContain(`'${c}'`);
   });

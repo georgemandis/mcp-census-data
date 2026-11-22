@@ -24,11 +24,11 @@ const text = (r: unknown, i: number) =>
 
 const QUERY = { dataset: "acs/acs5", vintage: 2024, get: ["NAME"], for: "county:*" };
 
-test("seven tools, each with a title and marked read-only", async () => {
+test("eight tools, each with a title and marked read-only", async () => {
   const { mcp } = await connect(clientReturning({}));
   const { tools } = await mcp.listTools();
   expect(tools.map((t) => t.name).sort()).toEqual([
-    "discover_datasets", "list_geographies", "profile_place", "query_data",
+    "discover_datasets", "list_geographies", "nearby_places", "profile_place", "query_data",
     "resolve_geography", "search_groups", "search_variables",
   ]);
   for (const t of tools) {

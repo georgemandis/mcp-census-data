@@ -37,10 +37,41 @@ export async function checkDeployable(
   return { tables: Object.keys(manifest.tables).length, megabytes: Math.round((bytes / 1024 ** 2) * 10) / 10 };
 }
 
+const HOW_PLACES = "Build it first: npm run build && npm run build:places";
+
+export async function checkPlacesDeployable(
+  dataDir: string,
+): Promise<{ places: number; megabytes: number }> {
+  let manifest: { places: number };
+  try {
+    manifest = JSON.parse(await readFile(join(dataDir, "manifest.json"), "utf8")) as { places: number };
+  } catch {
+    throw new Error(`No places data at ${dataDir}. ${HOW_PLACES}`);
+  }
+  const missing: string[] = [];
+  let bytes = 0;
+  for (const name of ["places.parquet", "place-counts.parquet", "place-types.json"]) {
+    try {
+      bytes += (await stat(join(dataDir, name))).size;
+    } catch {
+      missing.push(name);
+    }
+  }
+  if (missing.length) {
+    throw new Error(`The places data at ${dataDir} is incomplete: ${missing.join(", ")} missing. ${HOW_PLACES}`);
+  }
+  return { places: manifest.places, megabytes: Math.round((bytes / 1024 ** 2) * 10) / 10 };
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   // The image always carries data/acs from the project, whatever CENSUS_DATA_DIR says.
-  checkDeployable(join(DATA_DIR, "acs")).then(
-    (r) => process.stderr.write(`Profile data ready: ${r.tables} tables, ${r.megabytes} MB.\n`),
+  (async () => {
+    const r = await checkDeployable(join(DATA_DIR, "acs"));
+    process.stderr.write(`Profile data ready: ${r.tables} tables, ${r.megabytes} MB.\n`);
+    const p = await checkPlacesDeployable(join(DATA_DIR, "places"));
+    process.stderr.write(`Places data ready: ${p.places} places, ${p.megabytes} MB.\n`);
+  })().then(
+    () => undefined,
     (err) => {
       process.stderr.write(`${err instanceof Error ? err.message : String(err)}\n`);
       process.exit(1);
