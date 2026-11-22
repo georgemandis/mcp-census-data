@@ -33,12 +33,25 @@ describe("fold", () => {
     ["churches", "church"],
     ["bakeries", "bakery"],
     ["tutors", "tutor"],
-    ["tutoring", "tutor"],
+    ["movies", "movie"],
+    ["cookies", "cookie"],
     ["Stores", "store"],
     ["glass", "glass"],
     ["gyms", "gym"],
   ])("%s and %s are one word", (a, b) => {
     expect(fold(a)).toBe(fold(b));
+  });
+});
+
+describe("fold keeps different things different", () => {
+  it.each([
+    ["training", "train"],
+    ["marketing", "market"],
+    ["parking", "park"],
+    ["fishing", "fish"],
+    ["gardening", "garden"],
+  ])("%s is not %s", (a, b) => {
+    expect(fold(a)).not.toBe(fold(b));
   });
 });
 
@@ -178,3 +191,95 @@ describe("matchType on awkward everyday words", () => {
 function GROCERY_PATH() {
   return "shopping > food_and_beverage_store > grocery_store";
 }
+
+describe("matchType never counts a narrower or different type than was asked for", () => {
+  const more: [string, number][] = [
+    ["travel > automotive_service", 3700],
+    ["travel > automotive_service > automotive_repair", 1880],
+    ["travel > automotive_service > auto_electrical_repair", 5],
+    ["lifestyle > food_service", 69],
+    ["food_and_drink", 9000],
+    ["food_and_drink > cafe", 700],
+    ["travel > rail > train", 2],
+    ["shopping > market", 160],
+    ["services > marketing_agency", 280],
+    ["sports_and_recreation > fishing", 53],
+    ["sports_and_recreation > park", 1100],
+    ["travel > parking", 110],
+    ["travel > rv_park", 100],
+    ["health_care > chiropractic", 629],
+    ["health_care > optometry", 317],
+    ["health_care > physical_therapy", 422],
+    ["health_care > psychotherapy", 99],
+    ["health_care > emergency_or_urgent_care_facility", 159],
+    ["health_care > emergency_or_urgent_care_facility > urgent_care_clinic", 35],
+    ["arts > movie_theater", 80],
+    ["legal > attorney_or_law_firm", 1451],
+    ["beauty > mens_grooming_salon", 1],
+    ["shopping > water_store", 1],
+    ["sports_and_recreation > water_park", 5],
+    ["sports_and_recreation > sport_or_recreation_club > community_garden", 9],
+  ];
+  const all: TypeNode[] = [...nodes, ...more.map(([path, n]) => ({ path, name: path.split(" > ").at(-1)!, n }))];
+  const to = (asked: string) => {
+    const m = matchType(asked, all);
+    return "path" in m ? m.path : m.candidates.map((c) => c.name);
+  };
+  const candidates = (asked: string) => {
+    const m = matchType(asked, all);
+    expect("candidates" in m, `${asked} was counted as ${"path" in m ? m.path : ""}`).toBe(true);
+    return (m as { candidates: TypeNode[] }).candidates.map((c) => c.name);
+  };
+
+  it("offers both when two words fit part of a longer type name", () => {
+    const c = candidates("auto repair");
+    expect(c).toContain("automotive_repair");
+    expect(c).toContain("auto_electrical_repair");
+    expect(candidates("grooming salon")).toContain("mens_grooming_salon");
+  });
+
+  it("does not take one word plus a filler-like word as a whole type when other types share the word", () => {
+    const food = candidates("food");
+    expect(food).toContain("food_service");
+    expect(food).toContain("food_bank");
+    expect(candidates("water")).toEqual(expect.arrayContaining(["water_store", "water_park"]));
+    expect(candidates("community")).toEqual(expect.arrayContaining(["community_garden"]));
+  });
+
+  it("does not confuse a word with its -ing cousin", () => {
+    candidates("training"); // offered as a possibility, never counted
+    expect(to("trains")).toBe("travel > rail > train");
+    expect(candidates("marketing")).toContain("marketing_agency");
+    expect(to("markets")).toBe("shopping > market");
+    expect(to("fishing")).toBe("sports_and_recreation > fishing");
+    expect(to("parking")).toBe("travel > parking");
+  });
+
+  it.each(["parks", "the park", "local parks", "parks nearby", "Parks"])("%j is the park type", (asked) => {
+    expect(to(asked)).toBe("sports_and_recreation > park");
+  });
+
+  it("still takes one word when only one family of types has it", () => {
+    expect(to("grocery")).toBe("shopping > food_and_beverage_store > grocery_store");
+    expect(to("urgent care")).toBe("health_care > emergency_or_urgent_care_facility > urgent_care_clinic");
+    expect(to("tutors")).toBe("education > educational_service > tutoring_service");
+    expect(to("tutoring")).toBe("education > educational_service > tutoring_service");
+  });
+
+  it.each([
+    ["chiropractors", "health_care > chiropractic"],
+    ["optometrists", "health_care > optometry"],
+    ["lawyers", "legal > attorney_or_law_firm"],
+    ["attorneys", "legal > attorney_or_law_firm"],
+    ["movies", "arts > movie_theater"],
+    ["cinemas", "arts > movie_theater"],
+    ["movie theaters", "arts > movie_theater"],
+    ["café", "food_and_drink > cafe"],
+    ["cafés", "food_and_drink > cafe"],
+  ])("knows %j", (asked, path) => expect(to(asked)).toBe(path));
+
+  it("offers near-miss types as candidates when no word matches exactly", () => {
+    expect(candidates("therapists")).toEqual(expect.arrayContaining(["physical_therapy", "psychotherapy"]));
+    expect(candidates("rehab")).toEqual([]);
+  });
+});

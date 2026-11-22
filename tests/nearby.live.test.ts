@@ -97,6 +97,25 @@ describe.skipIf(!built)("nearby_places on built data", () => {
     expect("path" in m ? (m as TypeNode).name : (m as { candidates: TypeNode[] }).candidates.map((c) => c.name)).toBe(name);
   });
 
+  // Each of these once silently counted a narrower or different type.
+  test.each([
+    "auto repair", "car repair", "loan provider", "grooming salon", "modern museum", "medical referral",
+    "food", "water", "medical", "public", "community", "pet", "training", "marketing", "gardening", "fish",
+  ])("%j is not counted without asking which type is meant", (words) => {
+    const m = matchType(words, nodes);
+    expect("candidates" in m, "path" in m ? `counted as ${m.path}` : "").toBe(true);
+    expect((m as { candidates: TypeNode[] }).candidates.length).toBeGreaterThan(0);
+  });
+
+  test("the obvious type is among the candidates offered", () => {
+    const offered = (words: string) => (matchType(words, nodes) as { candidates: TypeNode[] }).candidates.map((c) => c.name);
+    expect(offered("auto repair")).toContain("automotive_repair");
+    expect(offered("food")).toContain("food_and_drink");
+    expect(offered("therapists")).toContain("physical_therapy");
+    expect(offered("rehab")).toContain("rehabilitation_center");
+    expect(offered("plumbers")).toContain("plumbing");
+  });
+
   test("words with no clear type return candidates, not a count", () => {
     for (const words of ["stuff", "senior centers", "store"]) {
       expect("candidates" in matchType(words, nodes), words).toBe(true);

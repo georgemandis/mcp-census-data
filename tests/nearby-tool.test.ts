@@ -89,7 +89,7 @@ describe("nearby_places", () => {
   it("gives an overview when no type is named", async () => {
     const { call } = await connect();
     const answer = JSON.parse(texts(await call({ location: "98101", radius_miles: 0 }))[1]);
-    expect(answer.overview.over[0].type).toBe("cafe");
+    expect(answer.overview.over[0].type).toBe("bar");
     expect(answer.types).toBeUndefined();
   });
 
@@ -153,7 +153,7 @@ describe("nearby_places", () => {
       const { call, logs } = await connect({
         openPlaces: async () => {
           const p = await openPlaces(placesFixture.dir);
-          return { ...p, countHere: async () => { throw new Error(`boom ${SECRET}`); } };
+          return { ...p, around: async () => { throw new Error(`boom ${SECRET}`); } };
         },
       });
       const r = await call({ location: SECRET, types: ["libraries"] });

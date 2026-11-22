@@ -23,6 +23,7 @@ export const PATHS = {
   foodBank: "community_and_government > social_or_community_service > food_bank",
   fireStation: "community_and_government > fire_station",
   cafe: "eat_and_drink > cafe",
+  bar: "eat_and_drink > bar",
 } as const;
 
 interface FixturePlace {
@@ -37,7 +38,7 @@ interface FixturePlace {
 const p = (name: string | null, path: string, basic: string | null, tract: string, miles: number, address: string | null = `${Math.round(miles * 1000)} Main St`): FixturePlace =>
   ({ name, path, basic, tract, miles, address });
 
-/** 23 places: 15 in tract A (six of them cafes), 5 in B, 2 in C, 1 in D. */
+/** 35 places: 27 in tract A (six cafes, twelve bars), 5 in B, 2 in C, 1 in D. */
 export const PLACES: FixturePlace[] = [
   p("Central Library", PATHS.library, "library", TRACT.A, 0.1),
   p("Corner Grocery", PATHS.grocery, "food_and_beverage_store", TRACT.A, 0.2),
@@ -49,6 +50,7 @@ export const PLACES: FixturePlace[] = [
   p(null, PATHS.park, "park", TRACT.A, 0.4, null),
   p("The Vortex", PATHS.mystery, null, TRACT.A, 0.45),
   ...[1, 2, 3, 4, 5, 6].map((i) => p(`Cafe ${i}`, PATHS.cafe, "cafe", TRACT.A, 0.01 * i)),
+  ...Array.from({ length: 12 }, (_, i) => p(`Bar ${i + 1}`, PATHS.bar, "bar", TRACT.A, 0.5 + 0.001 * i)),
   p("North Library", PATHS.library, "library", TRACT.B, 0.7),
   p("North Grocery", PATHS.grocery, "food_and_beverage_store", TRACT.B, 0.75),
   p("Diner Four", PATHS.restaurant, "restaurant", TRACT.B, 0.8),
@@ -72,6 +74,7 @@ export const COUNTS: [path: string, basic: string | null, county: number, state:
   [PATHS.foodBank, "social_or_community_service", 40, 100, 1000],
   [PATHS.fireStation, "fire_station", 3, 30, 300],
   [PATHS.cafe, "cafe", 20, 200, 2000],
+  [PATHS.bar, "bar", 50, 500, 5000],
 ];
 
 const q = (v: string | null) => (v === null ? "NULL" : `'${v.replace(/'/g, "''")}'`);
@@ -82,7 +85,7 @@ export async function buildPlacesFixture(): Promise<{ dir: string; cleanup(): Pr
 
   const rows = PLACES.map((x) => {
     const category = x.path.split(" > ").at(-1)!;
-    return `(${q(x.name)}, ${q(category)}, ${q(x.path)}, ${q(x.basic)}, ${q(x.address ?? null)}, ${q(x.address ? "Seattle" : null)}, ${q(x.address ? "WA" : null)}, ${q(x.address ? "98101" : null)}, ${CENTRE.lon}, ${CENTRE.lat + x.miles * MILE_LAT}, ${q(x.tract)}, 'meta')`;
+    return `(${q(x.name)}, ${q(category)}, ${q(x.path)}, ${q(x.basic)}, ${q(x.address ?? null)}, ${q(x.address ? "Seattle" : null)}, ${q(x.address ? "US-WA" : null)}, ${q(x.address ? "98101" : null)}, ${CENTRE.lon}, ${CENTRE.lat + x.miles * MILE_LAT}, ${q(x.tract)}, 'meta')`;
   });
   await db.run(
     `COPY (SELECT * FROM (VALUES ${rows.join(", ")})

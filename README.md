@@ -102,14 +102,23 @@ libraries, within 1 mile of ZIP 98101 (22 tracts, 83,843 people)
   under-represented here compared with the county.
 - **`per`:** rate against residents (the default), `households`,
   `children`, `older_adults`, `snap_households` or `people_below_poverty`.
+- **Types are only counted when it is clear which is meant.** "Auto repair"
+  could be several types, so it returns candidates to choose from and counts
+  nothing.
 - **Small numbers are not compared.** Below five places, found or expected,
-  the answer is "too few to compare"; a wider radius usually helps.
+  the answer is "too few to compare"; a wider radius usually helps. A ratio
+  is given only when the county's own figure is large enough and the
+  difference is more than chance would often produce.
+- **The county is the one the point is in.** When much of the area lies
+  outside it, or the area is most of it, the answer says so.
 
 Counts are approximate. The places come from
 [Overture Maps](https://overturemaps.org), a merged open dataset: types are
 sometimes wrong and coverage varies, so a lower rate than the county can mean
 fewer places or less complete mapping. Only places Overture marks open with
-high confidence are counted.
+high confidence are counted. In Puerto Rico and the other territories Overture
+records no open or closed status, so places there are counted on confidence
+alone and coverage is thinner; the answer says so.
 
 The data is built once on your machine and needs no key:
 

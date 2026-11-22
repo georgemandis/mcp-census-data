@@ -15,7 +15,8 @@ let store: Store;
 let places: PlacesStore;
 
 beforeAll(async () => {
-  profileFixture = await buildFixture();
+  // Tract C's count of households on SNAP is too noisy to use: 150 give or take 150.
+  profileFixture = await buildFixture({ [`1400000US${TRACT.C}`]: { B22003_002: [150, 150] } });
   placesFixture = await buildPlacesFixture();
   store = await openStore(profileFixture.dir);
   places = await openPlaces(placesFixture.dir);
@@ -66,7 +67,7 @@ describe("nearbyPlaces: a named type", () => {
       state: { count: 200, rate: 20 },
       us: { count: 2000, rate: 20 },
       expected_at_county_rate: 6,
-      vs_county: "about 33% of the county rate",
+      vs_county: "not clearly different from the county",
       nearest: [
         { name: "Central Library", type: "library", address: "100 Main St, Seattle, WA", miles: 0.1 },
         { name: "North Library", type: "library", address: "700 Main St, Seattle, WA", miles: 0.7 },
@@ -85,11 +86,19 @@ describe("nearbyPlaces: a named type", () => {
 
   it("says about the same, or how many times, when the numbers support it", async () => {
     expect(entry(await ask(["cafes"]), "cafes").vs_county).toBe("about the same as the county");
-    const alone = entry(await ask(["cafes"], { radiusMiles: 0 }), "cafes");
-    expect(alone.here).toEqual({ count: 6, rate: 60 });
-    expect(alone.expected_at_county_rate).toBe(2);
-    expect(alone.vs_county).toBe("about 3 times the county rate");
-    expect(alone.nearest).toHaveLength(5);
+    // Tract A alone: 12 bars where 5 would be expected.
+    const bars = entry(await ask(["bars"], { radiusMiles: 0 }), "bars");
+    expect(bars.here).toEqual({ count: 12, rate: 120 });
+    expect(bars.expected_at_county_rate).toBe(5);
+    expect(bars.vs_county).toBe("about 2.4 times the county rate");
+    expect(bars.nearest).toHaveLength(5);
+  });
+
+  it("gives no ratio when the county's own number is tiny", async () => {
+    // 6 cafes where 2 would be expected: more, but 2 is too few to build a ratio on.
+    const cafes = entry(await ask(["cafes"], { radiusMiles: 0 }), "cafes");
+    expect(cafes.expected_at_county_rate).toBe(2);
+    expect(cafes.vs_county).toBe("more here than the county rate would give, but the county has too few to say how much");
   });
 
   it("names a clear absence", async () => {
@@ -155,7 +164,18 @@ describe("nearbyPlaces: per a group", () => {
     expect(r.per.here).toBe(0);
     expect(l.here).toEqual({ count: 0, rate: null });
     expect(l.county).toEqual({ count: 20, rate: 20 });
+    expect(l.expected_at_county_rate).toBeNull();
     expect(l.vs_county).toBe("too few households on SNAP here to give a rate");
+  });
+
+  it("gives counts but no rate or comparison when the group's size is unreliable", async () => {
+    const r = await ask(["libraries"], { per: "snap_households", radiusMiles: 0 }, TRACT.C);
+    expect(r.per).toMatchObject({ here: 150, reliability: "unreliable" });
+    const l = entry(r, "libraries");
+    expect(l.here).toEqual({ count: 1, rate: null });
+    expect(l.expected_at_county_rate).toBeNull();
+    expect(l.vs_county).toBe("the number of households on SNAP here is too uncertain to compare");
+    expect(r.notes.some((n: string) => /too uncertain/.test(n))).toBe(true);
   });
 });
 
@@ -179,18 +199,19 @@ describe("nearbyPlaces: overview", () => {
     const r = await ask(undefined, { radiusMiles: 0 });
     expect(r.types).toBeUndefined();
     const o = r.overview!;
-    expect(o.over.map((x: any) => x.type)).toEqual(["cafe"]);
+    // Bars: 12 where 5 would be expected. Cafes (6 against 2) are left out: 2 is too few to compare with.
+    expect(o.over.map((x: any) => x.type)).toEqual(["bar"]);
     expect(o.over[0]).toEqual({
-      type: "cafe",
-      here: { count: 6, rate: 60 },
-      county: { count: 20, rate: 20 },
-      vs_county: "about 3 times the county rate",
+      type: "bar",
+      here: { count: 12, rate: 120 },
+      county: { count: 50, rate: 50 },
+      vs_county: "about 2.4 times the county rate",
     });
-    // Restaurants 3 of an expected 40, parks 1 of 6, food stores 2 of 5.
-    expect(o.under.map((x: any) => x.type)).toEqual(["restaurant", "park", "food_and_beverage_store"]);
+    // Restaurants 3 of an expected 40, parks 1 of 6. Food stores (2 of 5) are within chance.
+    expect(o.under.map((x: any) => x.type)).toEqual(["restaurant", "park"]);
     expect(o.under[0].vs_county).toBe("about 8% of the county rate");
     expect(o.commonest.map((x: any) => [x.type, x.here.count]).slice(0, 3)).toEqual([
-      ["cafe", 6], ["restaurant", 3], ["food_and_beverage_store", 2],
+      ["bar", 12], ["cafe", 6], ["restaurant", 3],
     ]);
     expect(o.none_found_here).toEqual([]);
   });
@@ -237,5 +258,42 @@ describe("nearbyPlaces: notes", () => {
     const r = await ask(["libraries"], { radiusMiles: 10, maxTracts: 1 });
     expect(r.area).toMatchObject({ tracts: 1, tracts_in_range: 6 });
     expect(r.notes.some((n: string) => /nearest 1 /.test(n))).toBe(true);
+  });
+});
+
+describe("baselineNotes", () => {
+  it("says nothing when the area sits inside its county and is a small part of it", async () => {
+    const { baselineNotes } = await import("../src/places/nearby.js");
+    expect(baselineNotes(new Map([["53033", 3000]]), "53033", 10000, "King County, Washington")).toEqual([]);
+  });
+
+  it("warns when much of the area lies outside the county it is compared with", async () => {
+    const { baselineNotes } = await import("../src/places/nearby.js");
+    const notes = baselineNotes(new Map([["51600", 25000], ["51059", 81000]]), "51600", 25026, "Fairfax city, Virginia");
+    expect(notes[0]).toBe(
+      "About 76% of this area's residents live outside Fairfax city, Virginia, so the county comparison is a rough guide. The state figures may be a fairer yardstick.",
+    );
+  });
+
+  it("warns when the area is most of its county", async () => {
+    const { baselineNotes } = await import("../src/places/nearby.js");
+    expect(baselineNotes(new Map([["30017", 10002]]), "30017", 11961, "Custer County, Montana")).toEqual([
+      "This area holds about 84% of the residents of Custer County, Montana, so comparing it with the county mostly compares it with itself.",
+    ]);
+  });
+
+  it("is silent without population figures", async () => {
+    const { baselineNotes } = await import("../src/places/nearby.js");
+    expect(baselineNotes(new Map(), "72127", null, null)).toEqual([]);
+  });
+});
+
+describe("nearbyPlaces: in a territory", () => {
+  it("says places are kept on confidence alone", async () => {
+    const r = await nearbyPlaces(at("72127000100"), store, places, { types: ["libraries"], radiusMiles: 0 });
+    expect(r.notes[1]).toBe(
+      "Overture does not record whether places here are open, so places are counted on confidence alone, and coverage is thinner than in the states. Comparisons with US figures are weak.",
+    );
+    expect(r.notes).not.toContain("Only places marked open with high confidence are counted.");
   });
 });

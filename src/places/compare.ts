@@ -53,7 +53,20 @@ export function expected(
   return (countThere / groupThere) * groupHere;
 }
 
-/** The count here against the count expected at the county's rate, in words. */
+/** Wording used when the area has more than the county's rate gives but the county figure is tiny. */
+export const MORE_BUT_SMALL =
+  "more here than the county rate would give, but the county has too few to say how much";
+export const NOT_CLEARLY_DIFFERENT = "not clearly different from the county";
+
+/**
+ * The count here against the count expected at the county's rate, in words.
+ *
+ * A ratio is given only when the expected count is at least 5 (so the
+ * county's rate rests on something) and the difference is larger than
+ * chance alone would often produce: about two standard deviations of a
+ * count of that size. Place counts are approximate, so this is a floor
+ * against reading noise, not a statistical verdict.
+ */
 export function versus(
   here: number,
   exp: number | null,
@@ -64,11 +77,21 @@ export function versus(
   const e = exp ?? 0;
   if (here < MIN_COUNT && e < MIN_COUNT) return "too few to compare";
   if (e <= 0) return "none in the county to compare with";
+  if (e < MIN_COUNT) return MORE_BUT_SMALL;
   if (here === 0) return `none found here; about ${Math.round(e)} would be expected at the county rate`;
   const ratio = here / e;
   if (ratio >= 0.8 && ratio <= 1.25) return "about the same as the county";
+  if (Math.abs(here - e) < 2 * Math.sqrt(e)) return NOT_CLEARLY_DIFFERENT;
   if (ratio > 1.25) {
     return `about ${ratio < 10 ? round(ratio, 1) : Math.round(ratio)} times the county rate`;
   }
   return `about ${Math.max(1, Math.round(ratio * 100))}% of the county rate`;
+}
+
+/** True when `versus` would state a ratio or a clear absence for these numbers. */
+export function clearlyDiffers(here: number, exp: number | null): boolean {
+  const e = exp ?? 0;
+  if (e < MIN_COUNT) return false;
+  const ratio = here / e;
+  return (ratio < 0.8 || ratio > 1.25) && Math.abs(here - e) >= 2 * Math.sqrt(e);
 }

@@ -46,7 +46,7 @@ describe("checkPlacesDeployable", () => {
     const { checkPlacesDeployable } = await import("../src/scripts/deploy-check.js");
     const { buildPlacesFixture } = await import("./places-fixture.js");
     const places = await buildPlacesFixture();
-    expect((await checkPlacesDeployable(places.dir)).places).toBe(23);
+    expect((await checkPlacesDeployable(places.dir)).places).toBe(35);
     await rm(join(places.dir, "place-counts.parquet"));
     await expect(checkPlacesDeployable(places.dir)).rejects.toThrow(/place-counts\.parquet/);
     await expect(checkPlacesDeployable(places.dir)).rejects.toThrow(/npm run build:places/);

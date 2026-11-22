@@ -56,9 +56,9 @@ describe("versus", () => {
     versus(here, exp, group, "residents");
 
   it("says how many times the county rate, to one decimal under ten", () => {
-    expect(v(6, 3.45)).toBe("about 1.7 times the county rate");
-    expect(v(40, 2)).toBe("about 20 times the county rate");
-    expect(v(9, 6)).toBe("about 1.5 times the county rate");
+    expect(v(12, 5)).toBe("about 2.4 times the county rate");
+    expect(v(100, 5)).toBe("about 20 times the county rate");
+    expect(v(20, 10)).toBe("about 2 times the county rate");
   });
 
   it("says about the same within a quarter either way", () => {
@@ -67,15 +67,31 @@ describe("versus", () => {
     expect(v(8, 10)).toBe("about the same as the county");
   });
 
-  it("gives a percentage when lower", () => {
-    expect(v(4, 10)).toBe("about 40% of the county rate");
-    expect(v(7, 10)).toBe("about 70% of the county rate");
-    expect(v(13, 10)).toBe("about 1.3 times the county rate");
+  it("gives a percentage when clearly lower", () => {
+    expect(v(3, 15)).toBe("about 20% of the county rate");
+    expect(v(3, 40)).toBe("about 8% of the county rate");
     expect(v(1, 12)).toBe("about 8% of the county rate");
   });
 
   it("names a clear absence", () => {
     expect(v(0, 6.4)).toBe("none found here; about 6 would be expected at the county rate");
+    expect(v(0, 5)).toBe("none found here; about 5 would be expected at the county rate");
+  });
+
+  it("will not call a difference that chance alone could produce", () => {
+    // Outside the quarter band, but within about two standard deviations of the expected count.
+    expect(v(4, 5.8)).toBe("not clearly different from the county");
+    expect(v(2, 6)).toBe("not clearly different from the county");
+    expect(v(13, 10)).toBe("not clearly different from the county");
+    expect(v(7, 10)).toBe("not clearly different from the county");
+  });
+
+  it("gives no ratio against a county figure that is itself tiny", () => {
+    const small = "more here than the county rate would give, but the county has too few to say how much";
+    expect(v(6, 0.4)).toBe(small);
+    expect(v(7, 0.8)).toBe(small);
+    expect(v(6, 2)).toBe(small);
+    expect(v(40, 4.9)).toBe(small);
   });
 
   it("will not compare small numbers", () => {
@@ -98,7 +114,7 @@ describe("versus", () => {
   });
 
   it("never produces NaN or Infinity", () => {
-    for (const args of [[0, 0], [5, 0], [0, null], [1e9, 1e-9], [5, 1e-12]] as [number, number | null][]) {
+    for (const args of [[0, 0], [5, 0], [0, null], [1e9, 1e-9], [5, 1e-12], [1e9, 5]] as [number, number | null][]) {
       expect(v(...args)).not.toMatch(/NaN|Infinity/);
     }
   });
