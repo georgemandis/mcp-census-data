@@ -83,7 +83,7 @@ const MAX_RANGES = 60;
  * area crosses a county or state line; a single range from the lowest tract
  * to the highest would then take in whole states in between.
  */
-function tractFilter(tracts: string[]): { sql: string; values: Record<string, string> } {
+export function tractFilter(tracts: string[]): { sql: string; values: Record<string, string> } {
   const byCounty = new Map<string, { lo: string; hi: string }>();
   for (const t of tracts) {
     const county = t.slice(0, 5);
@@ -106,7 +106,8 @@ function tractFilter(tracts: string[]): { sql: string; values: Record<string, st
   });
   return { sql: `(${parts.join(" OR ")}) AND tract IN (SELECT unnest($tracts))`, values };
 }
-const MILES = `3958.8 * 2 * asin(sqrt(
+/** Straight-line miles from ($lat, $lon) to a row's lat and lon. */
+export const MILES_SQL = `3958.8 * 2 * asin(sqrt(
   pow(sin(radians(lat - $lat) / 2), 2) +
   cos(radians($lat)) * cos(radians(lat)) * pow(sin(radians(lon - $lon) / 2), 2)))`;
 
@@ -179,8 +180,8 @@ export async function openPlaces(location: string = defaultPlacesLocation()): Pr
     if (counts.some((c) => c > 0)) {
       const rows = await query(
         `SELECT k, name, category, path, address, city, state, miles FROM (
-           SELECT n.k, p.name, p.category, p.path, p.address, p.city, p.state, ${MILES} AS miles,
-                  row_number() OVER (PARTITION BY n.k ORDER BY ${MILES}, p.name) AS rn
+           SELECT n.k, p.name, p.category, p.path, p.address, p.city, p.state, ${MILES_SQL} AS miles,
+                  row_number() OVER (PARTITION BY n.k ORDER BY ${MILES_SQL}, p.name) AS rn
            FROM ${PLACES} p
            JOIN (SELECT unnest($ks) AS k, unnest($nodes) AS node) n
              ON p.path = n.node OR starts_with(p.path, n.node || ' > ')
