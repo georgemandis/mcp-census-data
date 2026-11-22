@@ -3,7 +3,8 @@
  * into a point and an anchor tract.
  *
  * ZIPs and places are resolved from the bundled centre points, with no
- * outside request. Only addresses and coordinates use the geocoder.
+ * outside request, except in the Island Areas, which have no tracts in the
+ * data. Addresses and coordinates use the geocoder.
  */
 import { stateCode } from "../core/geography.js";
 import type { Geocoder } from "./geocode.js";
@@ -52,6 +53,33 @@ const OUTSIDE = "Those coordinates are outside the United States or its territor
 const NO_COORDINATE_SERVICE =
   "The location lookup service did not respond, so those coordinates could not be placed. Try again shortly, or use a ZIP or a place name.";
 
+const ISLAND_NO_SERVICE =
+  "The location lookup service did not respond, so that place could not be placed. Try again shortly.";
+
+/**
+ * Guam, the Northern Mariana Islands, American Samoa and the U.S. Virgin
+ * Islands: state code and a box around each. The ACS has no tracts there,
+ * so the nearest tract with data can be another territory or a state
+ * thousands of miles away. The Virgin Islands box stops west of St. Thomas,
+ * leaving Culebra and Vieques to Puerto Rico.
+ */
+const ISLAND_BOXES: { state: string; lat: [number, number]; lon: [number, number] }[] = [
+  { state: "66", lat: [13.2, 13.7], lon: [144.6, 145.0] },
+  { state: "69", lat: [14.0, 20.6], lon: [144.8, 146.1] },
+  { state: "60", lat: [-14.7, -10.9], lon: [-171.2, -168.0] },
+  { state: "78", lat: [17.6, 18.45], lon: [-65.09, -64.5] },
+];
+/** State codes of the Island Areas, which the American Community Survey does not cover. */
+export const ISLAND_AREAS = new Set(ISLAND_BOXES.map((b) => b.state));
+
+/** The Island Area a point lies in, by state code, or null. */
+export function islandArea(lat: number, lon: number): string | null {
+  const box = ISLAND_BOXES.find(
+    (b) => lat >= b.lat[0] && lat <= b.lat[1] && lon >= b.lon[0] && lon <= b.lon[1],
+  );
+  return box?.state ?? null;
+}
+
 /** How far a point may be from the nearest tract centre and still be used. */
 const MAX_FALLBACK_MILES = 5;
 const MAX_CANDIDATES = 10;
@@ -92,10 +120,24 @@ export function classify(location: string): Classified | null {
 
 const placeLabel = (p: PlacePoint) => `${p.name}, ${p.state}`;
 
-async function anchorNear(store: Store, lat: number, lon: number): Promise<string> {
+/**
+ * The tract for a ZIP or place centre: the nearest tract with data, except
+ * in the Island Areas, where only the geocoder can say which tract it is.
+ */
+async function anchorNear(
+  store: Store,
+  geocoder: Geocoder,
+  lat: number,
+  lon: number,
+): Promise<{ anchor: string; exact: boolean }> {
+  if (islandArea(lat, lon)) {
+    const hit = await geocoder.coordinates(lat, lon).catch(() => null);
+    if (!hit?.tract) throw new LocateError(ISLAND_NO_SERVICE);
+    return { anchor: hit.tract, exact: true };
+  }
   const nearest = await store.nearestTract(lat, lon);
   if (!nearest) throw new LocateError(NO_PLACE);
-  return nearest.geoid;
+  return { anchor: nearest.geoid, exact: false };
 }
 
 export async function locate(
@@ -114,8 +156,7 @@ export async function locate(
       label: `ZIP code area ${c.zip}`,
       lat: z.lat,
       lon: z.lon,
-      anchor: await anchorNear(store, z.lat, z.lon),
-      exact: false,
+      ...(await anchorNear(store, geocoder, z.lat, z.lon)),
     };
   }
 
@@ -142,8 +183,7 @@ export async function locate(
       label: placeLabel(p),
       lat: p.lat,
       lon: p.lon,
-      anchor: await anchorNear(store, p.lat, p.lon),
-      exact: false,
+      ...(await anchorNear(store, geocoder, p.lat, p.lon)),
     };
   }
 

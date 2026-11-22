@@ -103,6 +103,10 @@ export async function buildFixture(
     `('place', '1608830', 'Boise City city', 'ID', 43.6007, -116.2312)`,
     `('place', '5562240', 'Pewaukee city', 'WI', 43.0613, -88.2498)`,
     `('place', '5562250', 'Pewaukee village', 'WI', 43.0822, -88.2621)`,
+    // Island Areas have ZIPs but no tracts in the ACS; an Alaska village sits far from its tract's centre.
+    `('zcta', '96910', NULL, NULL, 13.450511, 144.750706)`,
+    `('zcta', '00802', NULL, NULL, 18.342939, -64.925102)`,
+    `('place', '0203880', 'Anvik city', 'AK', 62.6563, -160.2067)`,
   );
   await db.run(
     `COPY (SELECT * FROM (VALUES ${points.join(", ")}) AS t(kind, geoid, name, state, lat, lon))

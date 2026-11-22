@@ -186,3 +186,41 @@ describe("locate", () => {
     expect(String(err.stack)).not.toContain("Secret");
   });
 });
+
+describe("locate in the Island Areas", () => {
+  it.each([
+    ["96910", "66010953400"],
+    ["00802", "78030961200"],
+  ])("places ZIP %s with the geocoder, not the nearest tract with data", async (zip, tract) => {
+    const asked: [number, number][] = [];
+    const r = await locate(zip, {
+      store,
+      geocoder: geocoder({ coordinates: async (lat, lon) => { asked.push([lat, lon]); return { lat, lon, tract }; } }),
+    });
+    expect(asked).toHaveLength(1);
+    expect(r).toMatchObject({ kind: "zip", anchor: tract, exact: true });
+  });
+
+  it("says so when the geocoder cannot place it", async () => {
+    const err = await locate("96910", { store, geocoder: geocoder(down) }).catch((e) => e);
+    expect(err).toBeInstanceOf(LocateError);
+    expect(err.message).toBe("The location lookup service did not respond, so that place could not be placed. Try again shortly.");
+  });
+
+  it("leaves a far-flung Alaska village on its nearest tract, without the geocoder", async () => {
+    const r = await locate("Anvik, AK", {
+      store,
+      geocoder: geocoder({ coordinates: async () => { throw new Error("geocoder used"); } }),
+    });
+    expect(r.kind).toBe("place");
+    expect(r.anchor).toMatch(/^53/);
+  });
+
+  it.each([
+    [13.45, 144.75, "66"], [15.18, 145.75, "69"], [-14.28, -170.7, "60"], [18.34, -64.93, "78"], [17.73, -64.75, "78"],
+    [18.3, -65.3, null], [18.12, -65.44, null], [21.3, -157.85, null], [47.6, -122.3, null],
+  ])("islandArea(%f, %f) is %s", async (lat, lon, state) => {
+    const { islandArea } = await import("../src/profile/locate.js");
+    expect(islandArea(lat, lon)).toBe(state);
+  });
+});

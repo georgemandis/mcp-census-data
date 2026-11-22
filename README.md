@@ -49,6 +49,11 @@ available", such as `-666666666`, are returned as `null`.
 living within `radius_miles` of that point (default 1, maximum 10; 0 means
 the single census tract at the point).
 
+It covers the states, DC and Puerto Rico. The American Community Survey does
+not cover Guam, the U.S. Virgin Islands, American Samoa or the Northern
+Mariana Islands, so there `profile_place` says so, and `nearby_places` gives
+counts for the tract at the point without rates.
+
 - **Sections:** people, income, work, origins, households and children,
   older adults, school, benefits, housing. Pass `sections` to narrow it.
 - **Gaps:** five measures of need set against what people receive, such as

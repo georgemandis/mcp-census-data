@@ -17,7 +17,7 @@ import {
   type Line,
 } from "./definition.js";
 import { DEFAULT_RADIUS_MILES, MAX_RADIUS_MILES, MAX_TRACTS, selectArea } from "./area.js";
-import type { Located } from "./locate.js";
+import { ISLAND_AREAS, type Located } from "./locate.js";
 import {
   differs,
   interpolatedMedian,
@@ -156,6 +156,12 @@ export async function buildProfile(
   if (unknown.length) {
     throw new ProfileInputError(
       `Unknown section: ${unknown.join(", ")}. Sections are: ${SECTION_IDS.join(", ")}.`,
+    );
+  }
+  const islands = located.anchor.slice(0, 2);
+  if (ISLAND_AREAS.has(islands)) {
+    throw new ProfileInputError(
+      `The American Community Survey does not cover ${stateName(islands) ?? "this territory"}, so there is no profile here. nearby_places can still count places and SNAP retailers there.`,
     );
   }
   const sections = SECTIONS.filter((s) => wanted.includes(s.id));

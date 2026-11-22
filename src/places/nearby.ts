@@ -10,7 +10,7 @@
 import { countyName, stateName } from "../core/geography.js";
 import { DEFAULT_RADIUS_MILES, MAX_TRACTS, selectArea } from "../profile/area.js";
 import { estColumn, moeColumn, tableOf, type Cell } from "../profile/definition.js";
-import type { Located } from "../profile/locate.js";
+import { ISLAND_AREAS, type Located } from "../profile/locate.js";
 import { reliability, sumEst, type Est, type Reliability } from "../profile/moe.js";
 import { geoId, type Row, type Store } from "../profile/store.js";
 import { MIN_GROUP, PER, clearlyDiffers, expected, rate, versus, type PerGroup } from "./compare.js";
@@ -491,7 +491,12 @@ export async function nearbyPlaces(
   // Situational notes.
   const notes = result.notes;
   if (TERRITORIES.has(state)) notes[notes.indexOf(OPEN_ONLY)] = TERRITORY_NOTE;
-  if (here === null) {
+  const island = ISLAND_AREAS.has(state);
+  if (island) {
+    notes.push(
+      `The American Community Survey does not cover ${stateName(state) ?? "this territory"}, so there are no population figures or rates here, and the area is the census tract at this point whatever the radius.`,
+    );
+  } else if (here === null) {
     notes.push("There are no population figures for this area, so only counts are given.");
   } else if (shaky && here >= MIN_GROUP) {
     notes.push(
@@ -506,7 +511,7 @@ export async function nearbyPlaces(
   notes.push(
     ...baselineNotes(populationByCounty, county, whole(size([countyGeo], ["B01003_001"])), result.location.county),
   );
-  if (area.tracts.length === 1) {
+  if (area.tracts.length === 1 && !island) {
     notes.push("Only one census tract falls in this area, so figures are for that tract alone.");
   }
   if (area.truncated) {
