@@ -168,6 +168,32 @@ export async function writeTypes(db: DuckDBConnection, outDir: string): Promise<
   return types.length;
 }
 
+/**
+ * Downloads the census tract boundaries into `stage` and loads them as the
+ * table `tracts(geoid, geom)`. Needs the spatial extension loaded.
+ */
+export async function loadTractShapes(
+  db: DuckDBConnection,
+  stage: string,
+  log: (line: string) => void,
+): Promise<void> {
+  log("Downloading census tract boundaries…");
+  const zip = join(stage, "tracts.zip");
+  const res = await fetch(TRACT_SHAPES);
+  if (!res.ok || !res.body) throw new Error(`HTTP ${res.status} for ${TRACT_SHAPES}`);
+  await pipeline(Readable.fromWeb(res.body as never), createWriteStream(zip));
+  try {
+    await run("unzip", ["-o", "-q", zip, "-d", join(stage, "tracts")]);
+  } catch {
+    throw new Error("Could not unzip the tract boundaries. The `unzip` command is required.");
+  }
+  const [shp] = (await readdir(join(stage, "tracts"))).filter((f) => f.endsWith(".shp"));
+  if (!shp) throw new Error(`No shapefile inside ${TRACT_SHAPES}`);
+  await db.run(
+    `CREATE TABLE tracts AS SELECT GEOID AS geoid, geom FROM ST_Read(${quote(join(stage, "tracts", shp))})`,
+  );
+}
+
 const mb = (bytes: number) => `${(bytes / 1024 ** 2).toFixed(1)} MB`;
 
 async function main(): Promise<void> {
@@ -182,21 +208,7 @@ async function main(): Promise<void> {
   try {
     await db.run("INSTALL httpfs; LOAD httpfs; INSTALL spatial; LOAD spatial; SET s3_region = 'us-west-2';");
 
-    log("Downloading census tract boundaries…");
-    const zip = join(stage, "tracts.zip");
-    const res = await fetch(TRACT_SHAPES);
-    if (!res.ok || !res.body) throw new Error(`HTTP ${res.status} for ${TRACT_SHAPES}`);
-    await pipeline(Readable.fromWeb(res.body as never), createWriteStream(zip));
-    try {
-      await run("unzip", ["-o", "-q", zip, "-d", join(stage, "tracts")]);
-    } catch {
-      throw new Error("Could not unzip the tract boundaries. The `unzip` command is required.");
-    }
-    const [shp] = (await readdir(join(stage, "tracts"))).filter((f) => f.endsWith(".shp"));
-    if (!shp) throw new Error(`No shapefile inside ${TRACT_SHAPES}`);
-    await db.run(
-      `CREATE TABLE tracts AS SELECT GEOID AS geoid, geom FROM ST_Read(${quote(join(stage, "tracts", shp))})`,
-    );
+    await loadTractShapes(db, stage, log);
 
     log(`Reading Overture Maps Places ${OVERTURE_RELEASE} and assigning tracts (a few minutes)…`);
     const source = `read_parquet(${quote(overtureSource(OVERTURE_RELEASE))}, hive_partitioning = 1)`;

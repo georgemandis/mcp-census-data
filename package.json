@@ -21,7 +21,8 @@
     "build:acs": "node dist/scripts/build-acs.js",
     "deploy:check": "node dist/scripts/deploy-check.js",
     "deploy": "npm run build && npm run deploy:check && fly deploy --ha=false",
-    "build:places": "node dist/scripts/build-places.js"
+    "build:places": "node dist/scripts/build-places.js",
+    "build:snap": "node dist/scripts/build-snap.js"
   },
   "dependencies": {
     "@duckdb/node-api": "^2.0.1-r.1",
